@@ -60,10 +60,15 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [DailyOperationController::class, 'index'])->name('index');
             Route::get('/create', [DailyOperationController::class, 'create'])->name('create');
             Route::post('/', [DailyOperationController::class, 'store'])->name('store');
+            Route::get('/kualiti-tertunggak', [DailyOperationController::class, 'qualityPending'])->name('quality-pending');
             Route::get('/{daily_operation}/edit', [DailyOperationController::class, 'edit'])
                 ->middleware('restrict.mill')->name('edit');
             Route::put('/{daily_operation}', [DailyOperationController::class, 'update'])
                 ->middleware('restrict.mill')->name('update');
+            Route::get('/{daily_operation}/kualiti', [DailyOperationController::class, 'editQuality'])
+                ->middleware('restrict.mill')->name('edit-quality');
+            Route::put('/{daily_operation}/kualiti', [DailyOperationController::class, 'updateQuality'])
+                ->middleware('restrict.mill')->name('update-quality');
         });
     });
 

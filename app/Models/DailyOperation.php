@@ -31,30 +31,15 @@ class DailyOperation extends Model
     }
 
     /**
-     * Kira formula automatik:
-     * - OER (%) = CPO produced / BTS processed x 100
-     * - KER (%) = PK produced / BTS processed x 100
-     * - Throughput = BTS processed / jam operasi
-     * - Utilisation (%) = jam operasi / 24 x 100
+     * NOTA PENTING: OER, KER, Throughput dan Utilisation TIDAK dikira automatik.
+     * Nilai sebenar datang dari sistem lab kualiti / operasi yang berasingan,
+     * dan di-key-in oleh Pegawai Kilang pada keesokan harinya (T+1) melalui
+     * menu "Kemaskini Kualiti". Semua field ini boleh null sehingga dikemaskini.
      */
     public function calculateKpi(): void
     {
-        $btsProcessed = (float) $this->bts_diproses;
-        $jamOperasi = (float) $this->jam_operasi;
-
-        $this->oer = $btsProcessed > 0
-            ? round(($this->pengeluaran_cpo / $btsProcessed) * 100, 2)
-            : 0;
-
-        $this->ker = $btsProcessed > 0
-            ? round(($this->pengeluaran_pk / $btsProcessed) * 100, 2)
-            : 0;
-
-        $this->throughput = $jamOperasi > 0
-            ? round($btsProcessed / $jamOperasi, 2)
-            : 0;
-
-        $this->utilisation_rate = round(($jamOperasi / 24) * 100, 2);
+        // Tiada auto-calculation. Disimpan sebagai placeholder method
+        // sekiranya formula automatik diperlukan semula pada masa hadapan.
     }
 
     public function mill(): BelongsTo

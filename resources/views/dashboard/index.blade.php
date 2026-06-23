@@ -23,8 +23,15 @@
 </div>
 @endif
 
+<!-- Alert: data kualiti tertunggak -->
+@if($qualityPendingCount > 0)
+<div class="mb-3 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm">
+    🧪 {{ $qualityPendingCount }} rekod menunggu data kualiti (OER/KER/dll) — <a href="{{ route('data-harian.quality-pending') }}" class="underline font-medium">isi sekarang</a>
+</div>
+@endif
+
 <!-- Alert: OER/Downtime/FFA -->
-@if($summary['oer'] < $target->oer_target && $summary['bts_diproses'] > 0)
+@if($summary['oer'] > 0 && $summary['oer'] < $target->oer_target)
 <div class="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
     🔻 OER hari ini ({{ number_format($summary['oer'],2) }}%) di bawah sasaran ({{ number_format($target->oer_target,2) }}%)
 </div>

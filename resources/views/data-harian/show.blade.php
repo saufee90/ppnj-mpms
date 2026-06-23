@@ -27,14 +27,14 @@
                 'Stok CPO (MT)' => number_format($daily_operation->stok_cpo,2),
                 'Stok PK (MT)' => number_format($daily_operation->stok_pk,2),
             ],
-            'Kualiti & KPI (Auto-kira)' => [
-                'OER (%)' => number_format($daily_operation->oer,2),
-                'KER (%)' => number_format($daily_operation->ker,2),
-                'FFA (%)' => number_format($daily_operation->ffa,2),
-                'Moisture (%)' => number_format($daily_operation->moisture,2),
-                'Dirt (%)' => number_format($daily_operation->dirt,2),
-                'Throughput (MT/jam)' => number_format($daily_operation->throughput,2),
-                'Utilisation (%)' => number_format($daily_operation->utilisation_rate,2),
+            'Kualiti & KPI (Diisi T+1 oleh Pegawai Kilang)' => [
+                'OER (%)' => $daily_operation->oer !== null ? number_format($daily_operation->oer,2) : 'Belum diisi',
+                'KER (%)' => $daily_operation->ker !== null ? number_format($daily_operation->ker,2) : 'Belum diisi',
+                'FFA (%)' => $daily_operation->ffa !== null ? number_format($daily_operation->ffa,2) : 'Belum diisi',
+                'Moisture (%)' => $daily_operation->moisture !== null ? number_format($daily_operation->moisture,2) : 'Belum diisi',
+                'Dirt (%)' => $daily_operation->dirt !== null ? number_format($daily_operation->dirt,2) : 'Belum diisi',
+                'Throughput (MT/jam)' => $daily_operation->throughput !== null ? number_format($daily_operation->throughput,2) : 'Belum diisi',
+                'Utilisation (%)' => $daily_operation->utilisation_rate !== null ? number_format($daily_operation->utilisation_rate,2) : 'Belum diisi',
             ],
         ];
     @endphp

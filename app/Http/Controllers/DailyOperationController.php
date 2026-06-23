@@ -124,6 +124,63 @@ class DailyOperationController extends Controller
     }
 
     /**
+     * Senarai rekod yang BELUM diisi data kualiti (untuk T+1 key-in)
+     */
+    public function qualityPending(Request $request)
+    {
+        $user = $request->user();
+        $query = DailyOperation::with('mill')
+            ->whereNull('oer')
+            ->orderByDesc('tarikh');
+
+        if ($user->isPegawaiKilang()) {
+            $query->where('mill_id', $user->mill_id);
+        }
+
+        $records = $query->paginate(20);
+
+        return view('data-harian.quality-pending', compact('records'));
+    }
+
+    /**
+     * Form kemaskini kualiti untuk satu rekod (T+1)
+     */
+    public function editQuality(DailyOperation $daily_operation, Request $request)
+    {
+        $user = $request->user();
+        if ($user->isPegawaiKilang() && $daily_operation->mill_id !== $user->mill_id) {
+            abort(403);
+        }
+
+        return view('data-harian.edit-quality', compact('daily_operation'));
+    }
+
+    public function updateQuality(DailyOperation $daily_operation, Request $request)
+    {
+        $user = $request->user();
+        if ($user->isPegawaiKilang() && $daily_operation->mill_id !== $user->mill_id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'oer' => ['required', 'numeric', 'min:0', 'max:100'],
+            'ker' => ['required', 'numeric', 'min:0', 'max:100'],
+            'ffa' => ['required', 'numeric', 'min:0', 'max:100'],
+            'moisture' => ['required', 'numeric', 'min:0', 'max:100'],
+            'dirt' => ['required', 'numeric', 'min:0', 'max:100'],
+            'throughput' => ['required', 'numeric', 'min:0'],
+            'utilisation_rate' => ['required', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $old = $daily_operation->only(array_keys($validated));
+        $daily_operation->update($validated);
+
+        AuditLog::record('quality_updated', $daily_operation, $old, $validated);
+
+        return redirect()->route('data-harian.quality-pending')->with('success', 'Data kualiti berjaya dikemaskini.');
+    }
+
+    /**
      * Validation rules pusat - ikut keperluan validation dalam spesifikasi:
      * - Tidak boleh duplicate tarikh+kilang+shift
      * - BTS diproses tak boleh > BTS diterima + baki stok
@@ -150,10 +207,6 @@ class DailyOperationController extends Controller
             'pengeluaran_pk' => ['required', 'numeric', 'min:0'],
             'stok_cpo' => ['required', 'numeric', 'min:0'],
             'stok_pk' => ['required', 'numeric', 'min:0'],
-
-            'ffa' => ['required', 'numeric', 'min:0', 'max:100'],
-            'moisture' => ['required', 'numeric', 'min:0', 'max:100'],
-            'dirt' => ['required', 'numeric', 'min:0', 'max:100'],
 
             'isu_operasi' => ['nullable', 'string'],
             'tindakan_pembetulan' => ['nullable', 'string'],

@@ -27,6 +27,7 @@
 
                 @if(auth()->user()->canEditData())
                 <a href="{{ route('data-harian.create') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('data-harian.create') ? 'active' : '' }}">📝 Input Data Harian</a>
+                <a href="{{ route('data-harian.quality-pending') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('data-harian.quality-pending') || request()->routeIs('data-harian.edit-quality') ? 'active' : '' }}">🧪 Kemaskini Kualiti</a>
                 @endif
 
                 <a href="{{ route('rekod-harian.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('rekod-harian.*') ? 'active' : '' }}">📋 Senarai Rekod Harian</a>

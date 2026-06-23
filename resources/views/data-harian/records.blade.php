@@ -69,8 +69,8 @@
                 <td class="px-4 py-3">{{ $r->shift }}</td>
                 <td class="px-4 py-3 text-right">{{ number_format($r->bts_diproses,2) }}</td>
                 <td class="px-4 py-3 text-right">{{ number_format($r->pengeluaran_cpo,2) }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($r->oer,2) }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($r->ker,2) }}</td>
+                <td class="px-4 py-3 text-right">{{ $r->oer !== null ? number_format($r->oer,2) : '—' }}</td>
+                <td class="px-4 py-3 text-right">{{ $r->ker !== null ? number_format($r->ker,2) : '—' }}</td>
                 <td class="px-4 py-3 text-right">{{ number_format($r->downtime_jam,2) }}</td>
                 <td class="px-4 py-3">{{ $r->officer->name ?? '-' }}</td>
                 <td class="px-4 py-3 text-center space-x-2 whitespace-nowrap">

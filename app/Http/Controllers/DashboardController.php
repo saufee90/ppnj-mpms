@@ -32,10 +32,19 @@ class DashboardController extends Controller
             'bts_diproses' => $todayData->sum('bts_diproses'),
             'cpo' => $todayData->sum('pengeluaran_cpo'),
             'pk' => $todayData->sum('pengeluaran_pk'),
-            'oer' => $todayData->avg('oer') ?? 0,
-            'ker' => $todayData->avg('ker') ?? 0,
+            'oer' => $todayData->whereNotNull('oer')->avg('oer') ?? 0,
+            'ker' => $todayData->whereNotNull('ker')->avg('ker') ?? 0,
             'downtime' => $todayData->sum('downtime_jam'),
         ];
+
+        // Bilangan rekod yang masih tertunggak data kualiti (untuk alert)
+        $qualityPendingQuery = DailyOperation::whereNull('oer');
+        if ($user->isPegawaiKilang()) {
+            $qualityPendingQuery->where('mill_id', $user->mill_id);
+        } elseif ($selectedMillId) {
+            $qualityPendingQuery->where('mill_id', $selectedMillId);
+        }
+        $qualityPendingCount = $qualityPendingQuery->count();
 
         $millsBelumHantar = collect();
         foreach ($mills as $mill) {
@@ -64,8 +73,8 @@ class DashboardController extends Controller
             $rows = $trendData->get($date, collect());
             $btsProcessedTrend[] = round($rows->sum('bts_diproses'), 2);
             $cpoTrend[] = round($rows->sum('pengeluaran_cpo'), 2);
-            $oerTrend[] = round($rows->avg('oer') ?? 0, 2);
-            $kerTrend[] = round($rows->avg('ker') ?? 0, 2);
+            $oerTrend[] = round($rows->whereNotNull('oer')->avg('oer') ?? 0, 2);
+            $kerTrend[] = round($rows->whereNotNull('ker')->avg('ker') ?? 0, 2);
         }
 
         $comparisonLabels = $mills->pluck('name');
@@ -95,6 +104,7 @@ class DashboardController extends Controller
             'comparisonBts' => $comparisonBts,
             'comparisonDowntime' => $comparisonDowntime,
             'target' => $target,
+            'qualityPendingCount' => $qualityPendingCount,
             'mtdCpo' => $mtd->sum('pengeluaran_cpo'),
             'mtdBts' => $mtd->sum('bts_diproses'),
             'ytdCpo' => $ytd->sum('pengeluaran_cpo'),

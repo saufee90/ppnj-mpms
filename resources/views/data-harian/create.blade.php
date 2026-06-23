@@ -72,20 +72,8 @@
             <p class="text-xs text-gray-400 mt-2">* OER, KER, Throughput dan Utilisation akan dikira secara automatik selepas data disimpan.</p>
         </div>
 
-        <div>
-            <h3 class="text-sm font-semibold ppnj-green-text mb-3 border-b pb-2">D. Kualiti</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                @foreach([
-                    ['ffa','FFA (%) *'],
-                    ['moisture','Moisture (%) *'],
-                    ['dirt','Dirt (%) *'],
-                ] as [$field, $label])
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">{{ $label }}</label>
-                    <input type="number" step="0.01" name="{{ $field }}" value="{{ old($field, 0) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
-                </div>
-                @endforeach
-            </div>
+        <div class="p-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
+            ℹ️ Data kualiti (OER, KER, FFA, Moisture, Dirt, Throughput, Utilisation) akan diisi esok pagi melalui menu <strong>"Kemaskini Kualiti"</strong>, selepas keputusan lab diterima.
         </div>
 
         <div>
