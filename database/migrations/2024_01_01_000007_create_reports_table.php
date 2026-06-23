@@ -1,0 +1,28 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('reports', function (Blueprint $table) {
+            $table->id();
+            $table->string('jenis'); // harian, bulanan, tahunan
+            $table->string('format'); // pdf, excel
+            $table->foreignId('mill_id')->nullable()->constrained('mills'); // null = gabungan semua kilang
+            $table->date('tarikh_mula');
+            $table->date('tarikh_akhir');
+            $table->foreignId('generated_by')->constrained('users');
+            $table->string('file_path')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('reports');
+    }
+};
