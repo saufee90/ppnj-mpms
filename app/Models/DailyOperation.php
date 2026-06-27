@@ -10,7 +10,6 @@ class DailyOperation extends Model
 {
     protected $fillable = [
         'tarikh', 'mill_id', 'shift', 'officer_id',
-        'operation_status', 'operation_note',
         'bts_diterima', 'bts_diproses', 'baki_bts_semalam', 'baki_bts_selepas_diproses', 'jam_operasi', 'downtime_jam', 'sebab_downtime',
         'pengeluaran_cpo', 'pengeluaran_pk', 'produksi_cpo', 'produksi_pk', 'stok_cpo', 'stok_pk', 'stok_cpo_yesterday', 'stok_pk_yesterday',
         'oer', 'ker', 'ffa', 'moisture', 'dirt', 'throughput', 'utilisation_rate',
@@ -124,6 +123,9 @@ class DailyOperation extends Model
 
     public function scopeOperated($query)
     {
-        return $query->where('operation_status', 'operasi');
+        return $query->where(function ($query) {
+            $query->where('bts_diproses', '>', 0)
+                  ->orWhere('jam_operasi', '>', 0);
+        });
     }
 }

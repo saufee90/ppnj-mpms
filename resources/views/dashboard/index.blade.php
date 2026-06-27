@@ -63,21 +63,6 @@
 </div>
 @endif
 
-@if(!empty($isReceivedButNoProcessDay) && $isReceivedButNoProcessDay)
-<div class="mb-6 p-4 rounded-xl bg-yellow-50 border border-yellow-300 text-yellow-900 text-sm">
-    ⚠️ BTS diterima tetapi kilang tidak menjalankan proses pada tarikh ini.<br>
-    Hari ini tidak dikira sebagai Hari Operasi.<br>
-    KPI operasi dipaparkan berdasarkan Hari Operasi Terakhir.
-</div>
-@endif
-
-@if(!empty($isNoRecordDay) && $isNoRecordDay)
-<div class="mb-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-sm">
-    ℹ️ Tiada rekod operasi pada tarikh ini.<br>
-    KPI operasi dipaparkan berdasarkan Hari Operasi Terakhir.
-</div>
-@endif
-
 <!-- Alert: data kualiti tertunggak -->
 @if($qualityPendingCount > 0)
 <div class="mb-3 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm">
@@ -145,9 +130,6 @@
             <div class="flex items-center justify-between mb-4">
                 <p class="text-gray-600 font-medium">🛒 Jualan CPO (MT)</p>
             </div>
-            @if(!empty($isUsingLastOperatingKpi) && $isUsingLastOperatingKpi)
-                <p class="text-xs text-gray-500 mb-2">Berdasarkan Hari Operasi Terakhir: {{ $operationalKpiSourceDateText }}</p>
-            @endif
             <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['penjualan_cpo'], 2) }}</p>
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
@@ -166,9 +148,6 @@
             <div class="flex items-center justify-between mb-4">
                 <p class="text-gray-600 font-medium">🛒 Jualan PK (MT)</p>
             </div>
-            @if(!empty($isUsingLastOperatingKpi) && $isUsingLastOperatingKpi)
-                <p class="text-xs text-gray-500 mb-2">Berdasarkan Hari Operasi Terakhir: {{ $operationalKpiSourceDateText }}</p>
-            @endif
             <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['penjualan_pk'], 2) }}</p>
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
@@ -187,9 +166,6 @@
             <div class="flex items-center justify-between mb-4">
                 <p class="text-gray-600 font-medium">🛢️ Produksi CPO (MT)</p>
             </div>
-            @if(!empty($isUsingLastOperatingKpi) && $isUsingLastOperatingKpi)
-                <p class="text-xs text-gray-500 mb-2">Berdasarkan Hari Operasi Terakhir: {{ $operationalKpiSourceDateText }}</p>
-            @endif
             <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['produksi_cpo'] ?? 0, 2) }}</p>
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
@@ -208,9 +184,6 @@
             <div class="flex items-center justify-between mb-4">
                 <p class="text-gray-600 font-medium">🎯 Produksi PK (MT)</p>
             </div>
-            @if(!empty($isUsingLastOperatingKpi) && $isUsingLastOperatingKpi)
-                <p class="text-xs text-gray-500 mb-2">Berdasarkan Hari Operasi Terakhir: {{ $operationalKpiSourceDateText }}</p>
-            @endif
             <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['produksi_pk'] ?? 0, 2) }}</p>
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
@@ -229,9 +202,6 @@
             <div class="flex items-center justify-between mb-4">
                 <p class="text-gray-600 font-medium">⚙️ OER (%)</p>
             </div>
-            @if(!empty($isUsingLastOperatingKpi) && $isUsingLastOperatingKpi)
-                <p class="text-xs text-gray-500 mb-2">Berdasarkan Hari Operasi Terakhir: {{ $operationalKpiSourceDateText }}</p>
-            @endif
             <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['oer_rata'], 2) }}</p>
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
@@ -250,9 +220,6 @@
             <div class="flex items-center justify-between mb-4">
                 <p class="text-gray-600 font-medium">⚙️ KER (%)</p>
             </div>
-            @if(!empty($isUsingLastOperatingKpi) && $isUsingLastOperatingKpi)
-                <p class="text-xs text-gray-500 mb-2">Berdasarkan Hari Operasi Terakhir: {{ $operationalKpiSourceDateText }}</p>
-            @endif
             <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['ker_rata'] ?? 0, 2) }}</p>
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
@@ -271,9 +238,6 @@
             <div class="flex items-center justify-between mb-4">
                 <p class="text-gray-600 font-medium">⏱️ Jumlah Jam Proses (jam)</p>
             </div>
-            @if(!empty($isUsingLastOperatingKpi) && $isUsingLastOperatingKpi)
-                <p class="text-xs text-gray-500 mb-2">Berdasarkan Hari Operasi Terakhir: {{ $operationalKpiSourceDateText }}</p>
-            @endif
             <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['jam_proses'], 2) }}</p>
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
@@ -283,48 +247,6 @@
                 <div class="bg-yellow-50 rounded-lg p-3 border-l-2 border-yellow-400">
                     <p class="text-xs text-gray-600 mb-1">Tahun Ini (YTD)</p>
                     <p class="text-sm font-semibold text-yellow-700">{{ number_format($ytdMetrics['jam_proses'], 2) }}</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Throughput -->
-        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-t-4" style="border-color: #0B5D32;">
-            <div class="flex items-center justify-between mb-4">
-                <p class="text-gray-600 font-medium">⚙️ Throughput (MT/jam)</p>
-            </div>
-            @if(!empty($isUsingLastOperatingKpi) && $isUsingLastOperatingKpi)
-                <p class="text-xs text-gray-500 mb-2">Berdasarkan Hari Operasi Terakhir: {{ $operationalKpiSourceDateText }}</p>
-            @endif
-            <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['throughput'] ?? 0, 2) }}</p>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
-                    <p class="text-xs text-gray-600 mb-1">Bulan Ini (MTD)</p>
-                    <p class="text-sm font-semibold text-blue-700">-</p>
-                </div>
-                <div class="bg-yellow-50 rounded-lg p-3 border-l-2 border-yellow-400">
-                    <p class="text-xs text-gray-600 mb-1">Tahun Ini (YTD)</p>
-                    <p class="text-sm font-semibold text-yellow-700">-</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Utilisation -->
-        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-t-4" style="border-color: #0B5D32;">
-            <div class="flex items-center justify-between mb-4">
-                <p class="text-gray-600 font-medium">⚙️ Utilisation (%)</p>
-            </div>
-            @if(!empty($isUsingLastOperatingKpi) && $isUsingLastOperatingKpi)
-                <p class="text-xs text-gray-500 mb-2">Berdasarkan Hari Operasi Terakhir: {{ $operationalKpiSourceDateText }}</p>
-            @endif
-            <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['utilisation'] ?? 0, 2) }}</p>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
-                    <p class="text-xs text-gray-600 mb-1">Bulan Ini (MTD)</p>
-                    <p class="text-sm font-semibold text-blue-700">-</p>
-                </div>
-                <div class="bg-yellow-50 rounded-lg p-3 border-l-2 border-yellow-400">
-                    <p class="text-xs text-gray-600 mb-1">Tahun Ini (YTD)</p>
-                    <p class="text-sm font-semibold text-yellow-700">-</p>
                 </div>
             </div>
         </div>

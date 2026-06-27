@@ -55,21 +55,6 @@ class DashboardController extends Controller
         // Metrik Harian: gunakan data semalam
         $todayData = (clone $baseQuery)->where('tarikh', $displayDate)->get();
 
-        $todayLatestRecord = $todayData->sortByDesc('id')->first();
-        $isReceivedButNoProcessDay = (bool) $selectedMillId
-            && $todayLatestRecord?->operation_status === 'tidak_operasi_terima_bts';
-        $isNoRecordDay = (bool) $selectedMillId && $todayData->isEmpty();
-
-        $lastOperatedRecord = $selectedMillId
-            ? $this->getLastOperatingRecord((int) $selectedMillId, $displayDate)
-            : null;
-
-        $isUsingLastOperatingKpi = (bool) $selectedMillId && ! $this->isOperatingRecord($todayLatestRecord);
-
-        $operationalKpiSourceDateText = $lastOperatedRecord?->tarikh
-            ? $lastOperatedRecord->tarikh->format('d/m/Y')
-            : '-';
-
         // Status Operasi Kilang: guna rekod terbaru sehingga tarikh paparan semasa
         $latestOperationalRecord = (clone $baseQuery)
             ->where('tarikh', '<=', $displayDate)
@@ -85,9 +70,10 @@ class DashboardController extends Controller
             'stok_cpo_semalam' => (float) ($latestOperationalRecord?->stok_cpo_yesterday ?? 0),
         ];
 
-        $statusMills = $selectedMillId
-            ? Mill::where('id', (int) $selectedMillId)->get()
-            : Mill::where('is_active', true)->orderBy('name')->get();
+        $statusMills = Mill::query()
+            ->whereIn('code', ['KHG', 'BBJ'])
+            ->orderByRaw("CASE code WHEN 'KHG' THEN 1 WHEN 'BBJ' THEN 2 ELSE 99 END")
+            ->get();
 
         $operationalStatusByMill = $statusMills->map(function ($mill) use ($displayDate) {
             $latestMillRecord = DailyOperation::where('mill_id', $mill->id)
@@ -242,62 +228,19 @@ class DashboardController extends Controller
         $mtd = (clone $baseQuery)->forMonth(now()->year, now()->month)->get();
         $ytd = (clone $baseQuery)->forYear(now()->year)->get();
 
-        // KPI operasi harian: guna rekod hari semasa jika operasi, selainnya fallback ke Hari Operasi Terakhir.
-        $operationalSourceRows = collect();
-        if ($selectedMillId) {
-            if ($this->isOperatingRecord($todayLatestRecord)) {
-                $operationalSourceRows = collect([$todayLatestRecord]);
-            } elseif ($lastOperatedRecord) {
-                $operationalSourceRows = collect([$lastOperatedRecord]);
-            }
-        } else {
-            foreach ($mills as $mill) {
-                $millTodayRecord = DailyOperation::where('mill_id', $mill->id)
-                    ->where('tarikh', $displayDate)
-                    ->orderByDesc('id')
-                    ->first();
-
-                if ($this->isOperatingRecord($millTodayRecord)) {
-                    $operationalSourceRows->push($millTodayRecord);
-                    continue;
-                }
-
-                $millLastOperating = $this->getLastOperatingRecord((int) $mill->id, $displayDate);
-                if ($millLastOperating) {
-                    $operationalSourceRows->push($millLastOperating);
-                }
-            }
-        }
-
-        $operationalBtsDiproses = (float) $operationalSourceRows->sum('bts_diproses');
-        $operationalJamProses = (float) $operationalSourceRows->sum('jam_operasi');
-
-        $dailyOperationalKpis = [
-            'penjualan_cpo' => (float) $operationalSourceRows->sum('pengeluaran_cpo'),
-            'penjualan_pk' => (float) $operationalSourceRows->sum('pengeluaran_pk'),
-            'produksi_cpo' => (float) $operationalSourceRows->sum('produksi_cpo'),
-            'produksi_pk' => (float) $operationalSourceRows->sum('produksi_pk'),
-            'oer_rata' => $this->computeRate((float) $operationalSourceRows->sum('produksi_cpo'), $operationalBtsDiproses),
-            'ker_rata' => $this->computeRate((float) $operationalSourceRows->sum('produksi_pk'), $operationalBtsDiproses),
-            'jam_proses' => $operationalJamProses,
-            'throughput' => $operationalJamProses > 0 ? round($operationalBtsDiproses / $operationalJamProses, 2) : 0.0,
-            'utilisation' => (float) ($operationalSourceRows->avg('utilisation_rate') ?? 0),
-        ];
-
+        // Kalkulasi metrik Daily/MTD/YTD untuk 6 KPI utama
         $dailyMetrics = [
             'bts_diterima' => $todayData->sum('bts_diterima'),
             'bts_diproses' => $todayData->sum('bts_diproses'),
-            'penjualan_cpo' => $dailyOperationalKpis['penjualan_cpo'],
-            'penjualan_pk' => $dailyOperationalKpis['penjualan_pk'],
-            'produksi_cpo' => $dailyOperationalKpis['produksi_cpo'],
-            'produksi_pk' => $dailyOperationalKpis['produksi_pk'],
+            'penjualan_cpo' => $todayData->sum('pengeluaran_cpo'),
+            'penjualan_pk' => $todayData->sum('pengeluaran_pk'),
+            'produksi_cpo' => $todayData->sum('produksi_cpo'),
+            'produksi_pk' => $todayData->sum('produksi_pk'),
             'baki_bts_semalam' => $todayData->sum('baki_bts_semalam'),
             'baki_bts_selepas_diproses' => $todayData->sum('baki_bts_selepas_diproses'),
-            'oer_rata' => $dailyOperationalKpis['oer_rata'],
-            'ker_rata' => $dailyOperationalKpis['ker_rata'],
-            'jam_proses' => $dailyOperationalKpis['jam_proses'],
-            'throughput' => $dailyOperationalKpis['throughput'],
-            'utilisation' => $dailyOperationalKpis['utilisation'],
+            'oer_rata' => $this->computeRateFromRows($todayData, 'produksi_cpo'),
+            'ker_rata' => $this->computeRateFromRows($todayData, 'produksi_pk'),
+            'jam_proses' => $todayData->sum('jam_operasi'),
         ];
 
         $mtdBtsDiproses = $mtd->sum('bts_diproses');
@@ -368,45 +311,7 @@ class DashboardController extends Controller
             'mtdBts' => $mtdBtsDiproses,
             'ytdCpo' => $ytd->sum('pengeluaran_cpo'),
             'ytdBts' => $ytdBtsDiproses,
-            'isReceivedButNoProcessDay' => $isReceivedButNoProcessDay,
-            'isNoRecordDay' => $isNoRecordDay,
-            'isUsingLastOperatingKpi' => $isUsingLastOperatingKpi,
-            'operationalKpiSourceDateText' => $operationalKpiSourceDateText,
         ]);
-    }
-
-    private function getLastOperatingRecord(int $millId, string $selectedDate): ?DailyOperation
-    {
-        return DailyOperation::where('mill_id', $millId)
-            ->where('tarikh', '<', $selectedDate)
-            ->where(function ($query) {
-                $query->where('operation_status', 'operasi')
-                    ->orWhere(function ($legacyQuery) {
-                        $legacyQuery->whereNull('operation_status')
-                            ->where('bts_diproses', '>', 0)
-                            ->where('jam_operasi', '>', 0);
-                    });
-            })
-            ->orderByDesc('tarikh')
-            ->orderByDesc('id')
-            ->first();
-    }
-
-    private function isOperatingRecord($record): bool
-    {
-        if (! $record) {
-            return false;
-        }
-
-        if (($record->operation_status ?? null) === 'operasi') {
-            return true;
-        }
-
-        if ($record->operation_status === null) {
-            return (float) ($record->bts_diproses ?? 0) > 0 && (float) ($record->jam_operasi ?? 0) > 0;
-        }
-
-        return false;
     }
 
     private function computeRate(float|int $production, float|int $btsDiproses): float
