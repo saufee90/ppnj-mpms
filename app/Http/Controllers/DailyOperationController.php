@@ -51,6 +51,7 @@ class DailyOperationController extends Controller
         $validated['shift'] = $validated['shift'] ?? 'Harian';
 
         $validated = $this->applyOpeningBalance($validated);
+        $validated = $this->applyOperationStatusDefaults($validated);
 
         $validated['baki_bts_selepas_diproses'] = round(
             $validated['baki_bts_semalam'] + $validated['bts_diterima'] - $validated['bts_diproses'],
@@ -145,6 +146,7 @@ class DailyOperationController extends Controller
         $validated['shift'] = $validated['shift'] ?? $daily_operation->shift ?? 'Harian';
 
         $validated = $this->applyOpeningBalance($validated, $daily_operation->id);
+        $validated = $this->applyOperationStatusDefaults($validated);
 
         $validated['baki_bts_selepas_diproses'] = round(
             $validated['baki_bts_semalam'] + $validated['bts_diterima'] - $validated['bts_diproses'],
@@ -248,23 +250,25 @@ class DailyOperationController extends Controller
         $millRule = $user->isMillScopedRole() ? Rule::in([$user->mill_id]) : 'exists:mills,id';
 
         $validated = $request->validate([
-            'tarikh' => ['required', 'date'],
+            'tarikh' => ['required', 'date', 'before_or_equal:today'],
             'mill_id' => ['required', $millRule],
+            'operation_status' => ['required', Rule::in(['operasi', 'tidak_operasi_terima_bts'])],
+            'operation_note' => ['nullable', 'string'],
 
             'bts_diterima' => ['required', 'numeric', 'min:0'],
-            'bts_diproses' => ['required', 'numeric', 'min:0'],
-            'jam_operasi' => ['required', 'numeric', 'min:0', 'max:24'],
-            'downtime_jam' => ['required', 'numeric', 'min:0', 'max:24'],
+            'bts_diproses' => ['nullable', 'numeric', 'min:0', Rule::requiredIf(fn () => $request->input('operation_status', 'operasi') === 'operasi')],
+            'jam_operasi' => ['nullable', 'numeric', 'min:0', 'max:24', Rule::requiredIf(fn () => $request->input('operation_status', 'operasi') === 'operasi')],
+            'downtime_jam' => ['nullable', 'numeric', 'min:0', 'max:24'],
             'sebab_downtime' => ['nullable', 'string'],
 
-            'pengeluaran_cpo' => ['required', 'numeric', 'min:0'],
-            'pengeluaran_pk' => ['required', 'numeric', 'min:0'],
+            'pengeluaran_cpo' => ['nullable', 'numeric', 'min:0', Rule::requiredIf(fn () => $request->input('operation_status', 'operasi') === 'operasi')],
+            'pengeluaran_pk' => ['nullable', 'numeric', 'min:0', Rule::requiredIf(fn () => $request->input('operation_status', 'operasi') === 'operasi')],
             'produksi_cpo' => ['nullable', 'numeric', 'min:0'],
             'produksi_pk' => ['nullable', 'numeric', 'min:0'],
             'stok_cpo_yesterday' => ['nullable', 'numeric', 'min:0'],
             'stok_pk_yesterday' => ['nullable', 'numeric', 'min:0'],
-            'stok_cpo' => ['required', 'numeric', 'min:0'],
-            'stok_pk' => ['required', 'numeric', 'min:0'],
+            'stok_cpo' => ['nullable', 'numeric', 'min:0', Rule::requiredIf(fn () => $request->input('operation_status', 'operasi') === 'operasi')],
+            'stok_pk' => ['nullable', 'numeric', 'min:0', Rule::requiredIf(fn () => $request->input('operation_status', 'operasi') === 'operasi')],
             'baki_bts_semalam' => ['nullable', 'numeric', 'min:0'],
             'baki_bts_selepas_diproses' => ['nullable', 'numeric', 'min:0'],
 
@@ -273,6 +277,7 @@ class DailyOperationController extends Controller
             'catatan_tambahan' => ['nullable', 'string'],
         ], [
             'mill_id.in' => 'Anda hanya boleh key-in data untuk kilang anda sendiri.',
+            'tarikh.before_or_equal' => 'Tarikh rekod tidak boleh melebihi tarikh hari ini.',
             'jam_operasi.max' => 'Jam operasi tidak boleh melebihi 24 jam.',
             'downtime_jam.max' => 'Downtime tidak boleh melebihi 24 jam.',
         ]);
@@ -295,6 +300,40 @@ class DailyOperationController extends Controller
         }
 
         return $validated;
+    }
+
+    private function applyOperationStatusDefaults(array $data): array
+    {
+        $status = $data['operation_status'] ?? 'operasi';
+
+        if ($status !== 'tidak_operasi_terima_bts') {
+            $data['bts_diproses'] = round((float) ($data['bts_diproses'] ?? 0), 2);
+            $data['jam_operasi'] = round((float) ($data['jam_operasi'] ?? 0), 2);
+            $data['downtime_jam'] = round((float) ($data['downtime_jam'] ?? 0), 2);
+            $data['pengeluaran_cpo'] = round((float) ($data['pengeluaran_cpo'] ?? 0), 2);
+            $data['pengeluaran_pk'] = round((float) ($data['pengeluaran_pk'] ?? 0), 2);
+            $data['stok_cpo'] = round((float) ($data['stok_cpo'] ?? 0), 2);
+            $data['stok_pk'] = round((float) ($data['stok_pk'] ?? 0), 2);
+
+            return $data;
+        }
+
+        $data['bts_diproses'] = 0.0;
+        $data['jam_operasi'] = 0.0;
+        $data['downtime_jam'] = 0.0;
+        $data['pengeluaran_cpo'] = 0.0;
+        $data['pengeluaran_pk'] = 0.0;
+        $data['produksi_cpo'] = 0.0;
+        $data['produksi_pk'] = 0.0;
+        $data['throughput'] = 0.0;
+        $data['utilisation_rate'] = 0.0;
+        $data['oer'] = 0.0;
+        $data['ker'] = 0.0;
+        $data['stok_cpo'] = round((float) ($data['stok_cpo_yesterday'] ?? 0), 2);
+        $data['stok_pk'] = round((float) ($data['stok_pk_yesterday'] ?? 0), 2);
+        $data['sebab_downtime'] = null;
+
+        return $data;
     }
 
     private function resolveYesterdayStock(array $data, string $field, ?int $millId = null): float

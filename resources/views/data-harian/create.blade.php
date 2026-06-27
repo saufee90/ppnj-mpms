@@ -11,7 +11,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Tarikh *</label>
-                    <input id="tarikh_input" type="date" name="tarikh" value="{{ old('tarikh', $selectedTarikh ?? now()->toDateString()) }}" onchange="refreshOpeningBalanceByDate()" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <input id="tarikh_input" type="date" name="tarikh" value="{{ old('tarikh', $selectedTarikh ?? now()->toDateString()) }}" max="{{ now()->format('Y-m-d') }}" onchange="refreshOpeningBalanceByDate()" required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Kilang *</label>
@@ -20,6 +20,13 @@
                         @foreach($mills as $mill)
                             <option value="{{ $mill->id }}" {{ (string)request('mill_id') === (string)$mill->id || (string)old('mill_id') === (string)$mill->id ? 'selected' : '' }}>{{ $mill->name }}</option>
                         @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Status Operasi Harian *</label>
+                    <select name="operation_status" id="operation_status" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                        <option value="operasi" {{ old('operation_status', 'operasi') === 'operasi' ? 'selected' : '' }}>Operasi</option>
+                        <option value="tidak_operasi_terima_bts" {{ old('operation_status') === 'tidak_operasi_terima_bts' ? 'selected' : '' }}>Terima BTS Sahaja (Tidak Proses)</option>
                     </select>
                 </div>
             </div>
@@ -32,7 +39,7 @@
                     <label class="block text-xs text-gray-500 mb-1">BTS Diterima (MT) *</label>
                     <input type="number" step="0.01" name="bts_diterima" value="{{ old('bts_diterima', 0) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
-                <div>
+                <div class="operasi-only-field">
                     <label class="block text-xs text-gray-500 mb-1">BTS Diproses (MT) *</label>
                     <input type="number" step="0.01" name="bts_diproses" value="{{ old('bts_diproses', 0) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
@@ -44,22 +51,26 @@
                     <label class="block text-xs text-gray-500 mb-1">Baki BTS Selepas Diproses (MT)</label>
                     <input type="number" step="0.01" name="baki_bts_selepas_diproses" value="{{ old('baki_bts_selepas_diproses', 0) }}" readonly class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-100">
                 </div>
-                <div>
+                <div class="operasi-only-field">
                     <label class="block text-xs text-gray-500 mb-1">Jam Operasi Kilang *</label>
                     <input type="number" step="0.01" name="jam_operasi" value="{{ old('jam_operasi', 0) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
-                <div>
+                <div class="operasi-only-field">
                     <label class="block text-xs text-gray-500 mb-1">Downtime (jam) *</label>
                     <input type="number" step="0.01" name="downtime_jam" value="{{ old('downtime_jam', 0) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
             </div>
-            <div class="mt-4">
+            <div class="mt-4 operasi-only-field">
                 <label class="block text-xs text-gray-500 mb-1">Sebab Downtime</label>
                 <textarea name="sebab_downtime" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm">{{ old('sebab_downtime') }}</textarea>
             </div>
+            <div class="mt-4 non-operasi-only-field hidden">
+                <label class="block text-xs text-gray-500 mb-1">Catatan Operasi</label>
+                <textarea name="operation_note" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Contoh: Kilang terima BTS sahaja, proses akan dibuat hari berikutnya.">{{ old('operation_note') }}</textarea>
+            </div>
         </div>
 
-        <div>
+        <div class="operasi-only-field">
             <h3 class="text-sm font-semibold ppnj-green-text mb-3 border-b pb-2">C. Pengeluaran</h3>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
@@ -98,7 +109,7 @@
             <p class="text-xs text-gray-400 mt-2">* OER dan KER dikira automatik berdasarkan produksi dan BTS diproses. FFA, Moisture dan Dirt masih perlu diisi melalui menu <strong>"Kemaskini Kualiti"</strong>.</p>
         </div>
 
-        <div class="p-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
+        <div class="p-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm operasi-only-field">
             ℹ️ Data kualiti (FFA, Moisture dan Dirt) akan dikemas kini melalui menu <strong>"Kemaskini Kualiti"</strong> selepas keputusan makmal diterima. Nilai OER, KER, Throughput dan Utilisation dikira secara automatik oleh sistem.
         </div>
 
@@ -153,6 +164,39 @@
         writeValue('baki_bts_selepas_diproses', bakiBts);
     }
 
+    function setFieldValue(name, value) {
+        const el = document.querySelector('[name="' + name + '"]');
+        if (!el) return;
+        el.value = value;
+    }
+
+    function toggleOperationFields() {
+        const status = document.getElementById('operation_status')?.value || 'operasi';
+        const isNonOperation = status === 'tidak_operasi_terima_bts';
+
+        document.querySelectorAll('.operasi-only-field').forEach(function (el) {
+            el.classList.toggle('hidden', isNonOperation);
+        });
+        document.querySelectorAll('.non-operasi-only-field').forEach(function (el) {
+            el.classList.toggle('hidden', !isNonOperation);
+        });
+
+        const operasiRequiredFields = ['bts_diproses', 'jam_operasi', 'pengeluaran_cpo', 'pengeluaran_pk', 'stok_cpo', 'stok_pk'];
+        operasiRequiredFields.forEach(function (name) {
+            const input = document.querySelector('[name="' + name + '"]');
+            if (!input) return;
+            input.required = !isNonOperation;
+        });
+
+        if (isNonOperation) {
+            ['bts_diproses', 'jam_operasi', 'downtime_jam', 'pengeluaran_cpo', 'pengeluaran_pk', 'stok_cpo', 'stok_pk'].forEach(function (name) {
+                setFieldValue(name, '0');
+            });
+            setFieldValue('sebab_downtime', '');
+            recalculateDerivedFields();
+        }
+    }
+
     function refreshOpeningBalance(millId) {
         const tarikh = document.getElementById('tarikh_input')?.value || '';
         const params = new URLSearchParams();
@@ -180,6 +224,12 @@
             }
         });
 
+    const operationStatus = document.getElementById('operation_status');
+    if (operationStatus) {
+        operationStatus.addEventListener('change', toggleOperationFields);
+    }
+
+    toggleOperationFields();
     recalculateDerivedFields();
 </script>
 @endpush
