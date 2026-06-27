@@ -26,11 +26,11 @@
             </select>
         </div>
         <div id="millWrapper">
-            <label class="block text-xs text-gray-500 mb-1">Kilang (untuk Pegawai Kilang)</label>
-            <select name="mill_id" class="w-full border rounded-lg px-3 py-2 text-sm">
+            <label class="block text-xs text-gray-500 mb-1">Kilang (untuk Pegawai Kilang / Pengurus Kilang)</label>
+            <select id="mill_id" name="mill_id" class="w-full border rounded-lg px-3 py-2 text-sm">
                 <option value="">- Tiada -</option>
                 @foreach($mills as $mill)
-                    <option value="{{ $mill->id }}">{{ $mill->name }}</option>
+                    <option value="{{ $mill->id }}" {{ (string)old('mill_id') === (string)$mill->id ? 'selected' : '' }}>{{ $mill->name }}</option>
                 @endforeach
             </select>
         </div>
@@ -46,8 +46,16 @@
 <script>
 function toggleMill() {
     const sel = document.getElementById('role_id');
-    const isPegawai = sel.options[sel.selectedIndex].dataset.name === 'pegawai_kilang';
-    document.getElementById('millWrapper').style.display = isPegawai ? 'block' : 'none';
+    const roleName = sel.options[sel.selectedIndex].dataset.name;
+    const needsMill = roleName === 'pegawai_kilang' || roleName === 'pengurus_kilang';
+    const wrapper = document.getElementById('millWrapper');
+    const millSelect = document.getElementById('mill_id');
+
+    wrapper.style.display = needsMill ? 'block' : 'none';
+    millSelect.required = needsMill;
+    if (!needsMill) {
+        millSelect.value = '';
+    }
 }
 document.addEventListener('DOMContentLoaded', toggleMill);
 </script>

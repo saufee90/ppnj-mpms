@@ -13,21 +13,21 @@ class PerformanceAnalysisController extends Controller
         $user = $request->user();
         $mills = Mill::where('is_active', true)->get();
 
-        $millId = $request->input('mill_id', $user->isPegawaiKilang() ? $user->mill_id : null);
+        $millId = $request->input('mill_id', $user->isMillScopedRole() ? $user->mill_id : null);
         $year = $request->input('tahun', now()->year);
 
         $query = DailyOperation::forYear($year);
         if ($millId) {
             $query->where('mill_id', $millId);
         }
-        if ($user->isPegawaiKilang()) {
+        if ($user->isMillScopedRole()) {
             $query->where('mill_id', $user->mill_id);
         }
 
         $monthlyStats = collect(range(1, 12))->map(function ($month) use ($millId, $year, $user) {
             $q = DailyOperation::forMonth($year, $month);
             if ($millId) $q->where('mill_id', $millId);
-            if ($user->isPegawaiKilang()) $q->where('mill_id', $user->mill_id);
+            if ($user->isMillScopedRole()) $q->where('mill_id', $user->mill_id);
             $rows = $q->get();
 
             return [

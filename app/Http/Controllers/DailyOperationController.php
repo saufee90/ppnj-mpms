@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\DailyOperation;
 use App\Models\Mill;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -24,9 +25,22 @@ class DailyOperationController extends Controller
     public function create(Request $request)
     {
         $user = $request->user();
-        $mills = $user->isPegawaiKilang() ? Mill::where('id', $user->mill_id)->get() : Mill::where('is_active', true)->get();
+        $mills = $user->isMillScopedRole() ? Mill::where('id', $user->mill_id)->get() : Mill::where('is_active', true)->get();
 
-        return view('data-harian.create', compact('mills'));
+        $selectedMillId = $user->isMillScopedRole() ? $user->mill_id : $request->input('mill_id');
+        $selectedTarikh = $request->input('tarikh', now()->toDateString());
+
+        $opening = $this->resolveOpeningBalance($selectedMillId ? (int) $selectedMillId : null, $selectedTarikh);
+
+        return view('data-harian.create', [
+            'mills' => $mills,
+            'selectedMillId' => $selectedMillId,
+            'selectedTarikh' => $selectedTarikh,
+            'defaultBakiSemalam' => $opening['baki_bts_semalam'],
+            'defaultStokCpoYesterday' => $opening['stok_cpo_yesterday'],
+            'defaultStokPkYesterday' => $opening['stok_pk_yesterday'],
+            'canEditOpeningBalance' => $opening['can_edit'],
+        ]);
     }
 
     public function store(Request $request)
@@ -34,6 +48,21 @@ class DailyOperationController extends Controller
         $user = $request->user();
 
         $validated = $this->validateData($request, $user);
+        $validated['shift'] = $validated['shift'] ?? 'Harian';
+
+        $validated = $this->applyOpeningBalance($validated);
+
+        $validated['baki_bts_selepas_diproses'] = round(
+            $validated['baki_bts_semalam'] + $validated['bts_diterima'] - $validated['bts_diproses'],
+            2
+        );
+        $this->assertNonNegativeBaki($validated['baki_bts_selepas_diproses']);
+
+        $validated['produksi_cpo'] = $this->calculateProduction($validated, 'stok_cpo');
+        $validated['produksi_pk'] = $this->calculateProduction($validated, 'stok_pk');
+
+        $validated['oer'] = $this->calculateOer($validated);
+        $validated['ker'] = $this->calculateKer($validated);
 
         $data = $validated;
         $data['officer_id'] = $user->id;
@@ -56,7 +85,7 @@ class DailyOperationController extends Controller
 
         $query = DailyOperation::with(['mill', 'officer'])->orderByDesc('tarikh');
 
-        if ($user->isPegawaiKilang()) {
+        if ($user->isMillScopedRole()) {
             $query->where('mill_id', $user->mill_id);
         } elseif ($request->filled('mill_id')) {
             $query->where('mill_id', $request->input('mill_id'));
@@ -83,7 +112,7 @@ class DailyOperationController extends Controller
     public function show(DailyOperation $daily_operation, Request $request)
     {
         $user = $request->user();
-        if ($user->isPegawaiKilang() && $daily_operation->mill_id !== $user->mill_id) {
+        if ($user->isMillScopedRole() && $daily_operation->mill_id !== $user->mill_id) {
             abort(403);
         }
 
@@ -95,16 +124,39 @@ class DailyOperationController extends Controller
     public function edit(DailyOperation $daily_operation, Request $request)
     {
         $user = $request->user();
-        $mills = $user->isPegawaiKilang() ? Mill::where('id', $user->mill_id)->get() : Mill::where('is_active', true)->get();
+        $mills = $user->isMillScopedRole() ? Mill::where('id', $user->mill_id)->get() : Mill::where('is_active', true)->get();
 
-        return view('data-harian.edit', compact('daily_operation', 'mills'));
+        $opening = $this->resolveOpeningBalance(
+            $daily_operation->mill_id,
+            $daily_operation->tarikh->toDateString(),
+            $daily_operation->id
+        );
+
+        return view('data-harian.edit', compact('daily_operation', 'mills') + [
+            'canEditOpeningBalance' => $opening['can_edit'],
+        ]);
     }
 
     public function update(DailyOperation $daily_operation, Request $request)
     {
         $user = $request->user();
 
-        $validated = $this->validateData($request, $user, $daily_operation->id);
+        $validated = $this->validateData($request, $user, $daily_operation->id, $daily_operation->shift);
+        $validated['shift'] = $validated['shift'] ?? $daily_operation->shift ?? 'Harian';
+
+        $validated = $this->applyOpeningBalance($validated, $daily_operation->id);
+
+        $validated['baki_bts_selepas_diproses'] = round(
+            $validated['baki_bts_semalam'] + $validated['bts_diterima'] - $validated['bts_diproses'],
+            2
+        );
+        $this->assertNonNegativeBaki($validated['baki_bts_selepas_diproses']);
+
+        $validated['produksi_cpo'] = $this->calculateProduction($validated, 'stok_cpo');
+        $validated['produksi_pk'] = $this->calculateProduction($validated, 'stok_pk');
+
+        $validated['oer'] = $this->calculateOer($validated);
+        $validated['ker'] = $this->calculateKer($validated);
 
         $oldValues = $daily_operation->toArray();
         $daily_operation->update($validated);
@@ -130,10 +182,14 @@ class DailyOperationController extends Controller
     {
         $user = $request->user();
         $query = DailyOperation::with('mill')
-            ->whereNull('oer')
+            ->where(function ($query) {
+                $query->whereNull('ffa')
+                      ->orWhereNull('moisture')
+                      ->orWhereNull('dirt');
+            })
             ->orderByDesc('tarikh');
 
-        if ($user->isPegawaiKilang()) {
+        if ($user->isMillScopedRole()) {
             $query->where('mill_id', $user->mill_id);
         }
 
@@ -148,7 +204,7 @@ class DailyOperationController extends Controller
     public function editQuality(DailyOperation $daily_operation, Request $request)
     {
         $user = $request->user();
-        if ($user->isPegawaiKilang() && $daily_operation->mill_id !== $user->mill_id) {
+        if ($user->isMillScopedRole() && $daily_operation->mill_id !== $user->mill_id) {
             abort(403);
         }
 
@@ -158,19 +214,19 @@ class DailyOperationController extends Controller
     public function updateQuality(DailyOperation $daily_operation, Request $request)
     {
         $user = $request->user();
-        if ($user->isPegawaiKilang() && $daily_operation->mill_id !== $user->mill_id) {
+        if ($user->isMillScopedRole() && $daily_operation->mill_id !== $user->mill_id) {
             abort(403);
         }
 
         $validated = $request->validate([
-            'oer' => ['required', 'numeric', 'min:0', 'max:100'],
-            'ker' => ['required', 'numeric', 'min:0', 'max:100'],
             'ffa' => ['required', 'numeric', 'min:0', 'max:100'],
             'moisture' => ['required', 'numeric', 'min:0', 'max:100'],
             'dirt' => ['required', 'numeric', 'min:0', 'max:100'],
-            'throughput' => ['required', 'numeric', 'min:0'],
-            'utilisation_rate' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
+
+        $daily_operation->load('mill');
+        $validated['throughput'] = $daily_operation->computeThroughput();
+        $validated['utilisation_rate'] = $daily_operation->computeUtilisationRate($validated['throughput']);
 
         $old = $daily_operation->only(array_keys($validated));
         $daily_operation->update($validated);
@@ -187,26 +243,30 @@ class DailyOperationController extends Controller
      * - Downtime tak boleh > 24 jam
      * - Semua field penting wajib
      */
-    private function validateData(Request $request, $user, ?int $ignoreId = null): array
+    private function validateData(Request $request, $user, ?int $ignoreId = null, ?string $existingShift = null): array
     {
-        $millRule = $user->isPegawaiKilang() ? Rule::in([$user->mill_id]) : 'exists:mills,id';
+        $millRule = $user->isMillScopedRole() ? Rule::in([$user->mill_id]) : 'exists:mills,id';
 
         $validated = $request->validate([
             'tarikh' => ['required', 'date'],
             'mill_id' => ['required', $millRule],
-            'shift' => ['required', Rule::in(['Shift 1', 'Shift 2', 'Shift 3', 'Harian'])],
 
             'bts_diterima' => ['required', 'numeric', 'min:0'],
             'bts_diproses' => ['required', 'numeric', 'min:0'],
-            'baki_stok_bts' => ['required', 'numeric', 'min:0'],
             'jam_operasi' => ['required', 'numeric', 'min:0', 'max:24'],
             'downtime_jam' => ['required', 'numeric', 'min:0', 'max:24'],
             'sebab_downtime' => ['nullable', 'string'],
 
             'pengeluaran_cpo' => ['required', 'numeric', 'min:0'],
             'pengeluaran_pk' => ['required', 'numeric', 'min:0'],
+            'produksi_cpo' => ['nullable', 'numeric', 'min:0'],
+            'produksi_pk' => ['nullable', 'numeric', 'min:0'],
+            'stok_cpo_yesterday' => ['nullable', 'numeric', 'min:0'],
+            'stok_pk_yesterday' => ['nullable', 'numeric', 'min:0'],
             'stok_cpo' => ['required', 'numeric', 'min:0'],
             'stok_pk' => ['required', 'numeric', 'min:0'],
+            'baki_bts_semalam' => ['nullable', 'numeric', 'min:0'],
+            'baki_bts_selepas_diproses' => ['nullable', 'numeric', 'min:0'],
 
             'isu_operasi' => ['nullable', 'string'],
             'tindakan_pembetulan' => ['nullable', 'string'],
@@ -217,12 +277,7 @@ class DailyOperationController extends Controller
             'downtime_jam.max' => 'Downtime tidak boleh melebihi 24 jam.',
         ]);
 
-        // Validation custom: BTS diproses tak boleh lebih dari BTS diterima + baki stok
-        if ($validated['bts_diproses'] > ($validated['bts_diterima'] + $validated['baki_stok_bts'])) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'bts_diproses' => 'BTS diproses tidak boleh lebih tinggi daripada BTS diterima + baki stok BTS.',
-            ]);
-        }
+        $validated['shift'] = $validated['shift'] ?? $request->input('shift') ?? $existingShift ?? 'Harian';
 
         // Validation custom: elak duplicate tarikh+kilang+shift (kecuali rekod sendiri semasa update)
         $duplicateQuery = DailyOperation::where('tarikh', $validated['tarikh'])
@@ -240,5 +295,142 @@ class DailyOperationController extends Controller
         }
 
         return $validated;
+    }
+
+    private function resolveYesterdayStock(array $data, string $field, ?int $millId = null): float
+    {
+        $millId = $millId ?? $data['mill_id'];
+        $tarikh = isset($data['tarikh']) ? Carbon::parse($data['tarikh']) : Carbon::now();
+
+        $previous = DailyOperation::where('mill_id', $millId)
+            ->where('tarikh', '<', $tarikh->toDateString())
+            ->orderByDesc('tarikh')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $previous) {
+            return 0.0;
+        }
+
+        return match ($field) {
+            'stok_cpo' => $previous->stok_cpo ?? 0.0,
+            'stok_pk' => $previous->stok_pk ?? 0.0,
+            default => 0.0,
+        };
+    }
+
+    private function calculateProduction(array $data, string $field): float
+    {
+        $stok = $data[$field] ?? 0;
+        $yesterday = $data["{$field}_yesterday"] ?? 0;
+        $salesField = $field === 'stok_cpo' ? 'pengeluaran_cpo' : 'pengeluaran_pk';
+        $sales = $data[$salesField] ?? 0;
+
+        return round($stok - $yesterday + $sales, 2);
+    }
+
+    private function calculateOer(array $data): float
+    {
+        $btsDiproses = $data['bts_diproses'] ?? 0;
+        $produksiCpo = $data['produksi_cpo'] ?? 0;
+
+        if (! $btsDiproses) {
+            return 0.0;
+        }
+
+        return round(($produksiCpo / $btsDiproses) * 100, 2);
+    }
+
+    private function calculateKer(array $data): float
+    {
+        $btsDiproses = $data['bts_diproses'] ?? 0;
+        $produksiPk = $data['produksi_pk'] ?? 0;
+
+        if (! $btsDiproses) {
+            return 0.0;
+        }
+
+        return round(($produksiPk / $btsDiproses) * 100, 2);
+    }
+
+    private function applyOpeningBalance(array $data, ?int $ignoreId = null): array
+    {
+        $opening = $this->resolveOpeningBalance((int) $data['mill_id'], (string) $data['tarikh'], $ignoreId);
+
+        if ($opening['can_edit']) {
+            $data['baki_bts_semalam'] = round((float) ($data['baki_bts_semalam'] ?? 0), 2);
+            $data['stok_cpo_yesterday'] = round((float) ($data['stok_cpo_yesterday'] ?? 0), 2);
+            $data['stok_pk_yesterday'] = round((float) ($data['stok_pk_yesterday'] ?? 0), 2);
+
+            return $data;
+        }
+
+        $data['baki_bts_semalam'] = $opening['baki_bts_semalam'];
+        $data['stok_cpo_yesterday'] = $opening['stok_cpo_yesterday'];
+        $data['stok_pk_yesterday'] = $opening['stok_pk_yesterday'];
+
+        return $data;
+    }
+
+    private function resolveOpeningBalance(?int $millId, ?string $tarikh, ?int $ignoreId = null): array
+    {
+        if (! $millId || ! $tarikh) {
+            return [
+                'can_edit' => true,
+                'baki_bts_semalam' => 0.0,
+                'stok_cpo_yesterday' => 0.0,
+                'stok_pk_yesterday' => 0.0,
+            ];
+        }
+
+        $selectedDate = Carbon::parse($tarikh);
+        $previousDate = $selectedDate->copy()->subDay()->toDateString();
+
+        $previousQuery = DailyOperation::where('mill_id', $millId)
+            ->where('tarikh', '<', $selectedDate->toDateString())
+            ->orderByDesc('tarikh')
+            ->orderByDesc('id');
+
+        if ($ignoreId) {
+            $previousQuery->where('id', '!=', $ignoreId);
+        }
+
+        $previous = $previousQuery->first();
+
+        $previousDayPkRecord = DailyOperation::where('mill_id', $millId)
+            ->whereDate('tarikh', $previousDate);
+
+        if ($ignoreId) {
+            $previousDayPkRecord->where('id', '!=', $ignoreId);
+        }
+
+        $previousDayPkRecord = $previousDayPkRecord
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $previous) {
+            return [
+                'can_edit' => true,
+                'baki_bts_semalam' => 0.0,
+                'stok_cpo_yesterday' => 0.0,
+                'stok_pk_yesterday' => 0.0,
+            ];
+        }
+
+        return [
+            'can_edit' => false,
+            'baki_bts_semalam' => round((float) ($previous->baki_bts_selepas_diproses ?? 0), 2),
+            'stok_cpo_yesterday' => round((float) ($previous->stok_cpo ?? 0), 2),
+            'stok_pk_yesterday' => round((float) ($previousDayPkRecord?->stok_pk ?? 0), 2),
+        ];
+    }
+
+    private function assertNonNegativeBaki(float $bakiBtsSelepasDiproses): void
+    {
+        if ($bakiBtsSelepasDiproses < 0) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'bts_diproses' => 'Baki BTS Selepas Diproses tidak boleh negatif. Sila semak BTS Diproses.',
+            ]);
+        }
     }
 }

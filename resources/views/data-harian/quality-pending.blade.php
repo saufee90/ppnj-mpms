@@ -3,7 +3,7 @@
 
 @section('content')
 <div class="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
-    Senarai rekod yang belum diisi data kualiti (OER, KER, FFA, Moisture, Dirt, Throughput, Utilisation). Isi selepas keputusan lab diterima.
+    Senarai rekod yang belum diisi data kualiti (FFA, Moisture, Dirt, Throughput, Utilisation). OER/KER dikira automatik berdasarkan produksi dan BTS diproses.
 </div>
 
 <div class="bg-white rounded-xl shadow-sm overflow-x-auto">
@@ -15,6 +15,8 @@
                 <th class="px-4 py-3 text-left">Shift</th>
                 <th class="px-4 py-3 text-right">BTS Diproses</th>
                 <th class="px-4 py-3 text-right">CPO</th>
+                <th class="px-4 py-3 text-right">OER%</th>
+                <th class="px-4 py-3 text-right">KER%</th>
                 <th class="px-4 py-3 text-center">Tindakan</th>
             </tr>
         </thead>
@@ -26,12 +28,14 @@
                 <td class="px-4 py-3">{{ $r->shift }}</td>
                 <td class="px-4 py-3 text-right">{{ number_format($r->bts_diproses,2) }}</td>
                 <td class="px-4 py-3 text-right">{{ number_format($r->pengeluaran_cpo,2) }}</td>
+                <td class="px-4 py-3 text-right">{{ $r->oer !== null ? number_format($r->oer,2) : '—' }}</td>
+                <td class="px-4 py-3 text-right">{{ $r->ker !== null ? number_format($r->ker,2) : '—' }}</td>
                 <td class="px-4 py-3 text-center">
                     <a href="{{ route('data-harian.edit-quality', $r) }}" class="px-3 py-1.5 rounded-lg ppnj-green text-white text-xs">Isi Data Kualiti</a>
                 </td>
             </tr>
             @empty
-            <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Tiada rekod tertunggak. Semua data kualiti dah dikemaskini. 🎉</td></tr>
+            <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Tiada rekod tertunggak. Semua data kualiti dah dikemaskini. 🎉</td></tr>
             @endforelse
         </tbody>
     </table>

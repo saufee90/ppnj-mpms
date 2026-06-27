@@ -49,9 +49,24 @@ class User extends Authenticatable
         return $this->role?->name === Role::PEGAWAI_KILANG;
     }
 
+    public function isPengurusKilang(): bool
+    {
+        return $this->role?->name === Role::PENGURUS_KILANG;
+    }
+
     public function isPengurusan(): bool
     {
         return $this->role?->name === Role::PENGURUSAN;
+    }
+
+    public function isMillScopedRole(): bool
+    {
+        return $this->isPegawaiKilang() || $this->isPengurusKilang();
+    }
+
+    public function canViewAllMills(): bool
+    {
+        return $this->isAdmin() || $this->isPengurusan();
     }
 
     // Pegawai kilang hanya boleh edit, Admin boleh edit & padam, Pengurusan hanya lihat

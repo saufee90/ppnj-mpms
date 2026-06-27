@@ -7,6 +7,7 @@ use App\Models\Mill;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -37,6 +38,17 @@ class UserManagementController extends Controller
             'mill_id' => ['nullable', 'exists:mills,id'],
         ]);
 
+        $role = Role::find($validated['role_id']);
+        $requiresMill = in_array($role?->name, [Role::PEGAWAI_KILANG, Role::PENGURUS_KILANG], true);
+        if ($requiresMill && empty($validated['mill_id'])) {
+            return back()->withErrors([
+                'mill_id' => 'Sila pilih kilang untuk peranan Pegawai Kilang atau Pengurus Kilang.',
+            ])->withInput();
+        }
+        if (! $requiresMill) {
+            $validated['mill_id'] = null;
+        }
+
         $validated['password'] = Hash::make($validated['password']);
         $validated['is_active'] = true;
 
@@ -66,6 +78,17 @@ class UserManagementController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
 
+        $role = Role::find($validated['role_id']);
+        $requiresMill = in_array($role?->name, [Role::PEGAWAI_KILANG, Role::PENGURUS_KILANG], true);
+        if ($requiresMill && empty($validated['mill_id'])) {
+            return back()->withErrors([
+                'mill_id' => 'Sila pilih kilang untuk peranan Pegawai Kilang atau Pengurus Kilang.',
+            ])->withInput();
+        }
+        if (! $requiresMill) {
+            $validated['mill_id'] = null;
+        }
+
         if (! empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
         } else {
@@ -83,7 +106,7 @@ class UserManagementController extends Controller
 
     public function destroy(User $user)
     {
-        if ($user->id === auth()->id()) {
+        if ($user->id === Auth::id()) {
             return back()->with('error', 'Anda tidak boleh memadam akaun sendiri.');
         }
 

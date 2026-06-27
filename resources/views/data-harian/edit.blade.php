@@ -22,32 +22,36 @@
                         @endforeach
                     </select>
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Shift / Sesi *</label>
-                    <select name="shift" required class="w-full border rounded-lg px-3 py-2 text-sm">
-                        @foreach(['Harian','Shift 1','Shift 2','Shift 3'] as $shift)
-                            <option value="{{ $shift }}" {{ old('shift', $daily_operation->shift) == $shift ? 'selected' : '' }}>{{ $shift }}</option>
-                        @endforeach
-                    </select>
-                </div>
             </div>
         </div>
 
         <div>
             <h3 class="text-sm font-semibold ppnj-green-text mb-3 border-b pb-2">B. Penerimaan & Pemprosesan</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                @foreach([
-                    ['bts_diterima','BTS Diterima (MT) *'],
-                    ['bts_diproses','BTS Diproses (MT) *'],
-                    ['baki_stok_bts','Baki Stok BTS (MT) *'],
-                    ['jam_operasi','Jam Operasi Kilang *'],
-                    ['downtime_jam','Downtime (jam) *'],
-                ] as [$field, $label])
                 <div>
-                    <label class="block text-xs text-gray-500 mb-1">{{ $label }}</label>
-                    <input type="number" step="0.01" name="{{ $field }}" value="{{ old($field, $daily_operation->$field) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <label class="block text-xs text-gray-500 mb-1">BTS Diterima (MT) *</label>
+                    <input type="number" step="0.01" name="bts_diterima" value="{{ old('bts_diterima', $daily_operation->bts_diterima) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
-                @endforeach
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">BTS Diproses (MT) *</label>
+                    <input type="number" step="0.01" name="bts_diproses" value="{{ old('bts_diproses', $daily_operation->bts_diproses) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Baki BTS Semalam (MT)</label>
+                    <input type="number" step="0.01" name="baki_bts_semalam" value="{{ old('baki_bts_semalam', $daily_operation->baki_bts_semalam) }}" @readonly(!($canEditOpeningBalance ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditOpeningBalance ?? false) ? 'bg-gray-100' : '' }}">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Baki BTS Selepas Diproses (MT)</label>
+                    <input type="number" step="0.01" name="baki_bts_selepas_diproses" value="{{ old('baki_bts_selepas_diproses', $daily_operation->baki_bts_selepas_diproses) }}" readonly class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-100">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Jam Operasi Kilang *</label>
+                    <input type="number" step="0.01" name="jam_operasi" value="{{ old('jam_operasi', $daily_operation->jam_operasi) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Downtime (jam) *</label>
+                    <input type="number" step="0.01" name="downtime_jam" value="{{ old('downtime_jam', $daily_operation->downtime_jam) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                </div>
             </div>
             <div class="mt-4">
                 <label class="block text-xs text-gray-500 mb-1">Sebab Downtime</label>
@@ -58,19 +62,40 @@
         <div>
             <h3 class="text-sm font-semibold ppnj-green-text mb-3 border-b pb-2">C. Pengeluaran</h3>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                @foreach([
-                    ['pengeluaran_cpo','Pengeluaran CPO (MT) *'],
-                    ['pengeluaran_pk','Pengeluaran PK (MT) *'],
-                    ['stok_cpo','Stok CPO Semasa (MT) *'],
-                    ['stok_pk','Stok PK Semasa (MT) *'],
-                ] as [$field, $label])
                 <div>
-                    <label class="block text-xs text-gray-500 mb-1">{{ $label }}</label>
-                    <input type="number" step="0.01" name="{{ $field }}" value="{{ old($field, $daily_operation->$field) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <label class="block text-xs text-gray-500 mb-1">Jualan CPO (MT) *</label>
+                    <input type="number" step="0.01" name="pengeluaran_cpo" value="{{ old('pengeluaran_cpo', $daily_operation->pengeluaran_cpo) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
-                @endforeach
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Jualan PK (MT) *</label>
+                    <input type="number" step="0.01" name="pengeluaran_pk" value="{{ old('pengeluaran_pk', $daily_operation->pengeluaran_pk) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Stok CPO Semalam (MT)</label>
+                    <input type="number" step="0.01" name="stok_cpo_yesterday" value="{{ old('stok_cpo_yesterday', $daily_operation->stok_cpo_yesterday) }}" @readonly(!($canEditOpeningBalance ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditOpeningBalance ?? false) ? 'bg-gray-100' : '' }}">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Stok PK Semalam (MT)</label>
+                    <input type="number" step="0.01" name="stok_pk_yesterday" value="{{ old('stok_pk_yesterday', $daily_operation->stok_pk_yesterday) }}" @readonly(!($canEditOpeningBalance ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditOpeningBalance ?? false) ? 'bg-gray-100' : '' }}">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Pengeluaran CPO (MT)</label>
+                    <input type="number" step="0.01" name="produksi_cpo" value="{{ old('produksi_cpo', $daily_operation->produksi_cpo) }}" readonly class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-100">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Pengeluaran PK (MT)</label>
+                    <input type="number" step="0.01" name="produksi_pk" value="{{ old('produksi_pk', $daily_operation->produksi_pk) }}" readonly class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-100">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Stok CPO Semasa (MT) *</label>
+                    <input type="number" step="0.01" name="stok_cpo" value="{{ old('stok_cpo', $daily_operation->stok_cpo) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Stok PK Semasa (MT) *</label>
+                    <input type="number" step="0.01" name="stok_pk" value="{{ old('stok_pk', $daily_operation->stok_pk) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                </div>
             </div>
-            <p class="text-xs text-gray-400 mt-2">* OER, KER, Throughput dan Utilisation akan dikira secara automatik selepas data disimpan.</p>
+            <p class="text-xs text-gray-400 mt-2">* OER dan KER dikira automatik berdasarkan produksi dan BTS diproses. FFA, Moisture dan Dirt masih perlu diisi melalui menu <strong>"Kemaskini Kualiti"</strong>.</p>
         </div>
 
         <div class="p-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
@@ -102,3 +127,40 @@
     </form>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    function parseValue(name) {
+        const el = document.querySelector('[name="' + name + '"]');
+        if (!el) return 0;
+        const val = parseFloat(el.value);
+        return Number.isFinite(val) ? val : 0;
+    }
+
+    function writeValue(name, value) {
+        const el = document.querySelector('[name="' + name + '"]');
+        if (!el) return;
+        el.value = (Math.round(value * 100) / 100).toFixed(2);
+    }
+
+    function recalculateDerivedFields() {
+        const produksiCpo = parseValue('stok_cpo') - parseValue('stok_cpo_yesterday') + parseValue('pengeluaran_cpo');
+        const produksiPk = parseValue('stok_pk') - parseValue('stok_pk_yesterday') + parseValue('pengeluaran_pk');
+        const bakiBts = parseValue('baki_bts_semalam') + parseValue('bts_diterima') - parseValue('bts_diproses');
+
+        writeValue('produksi_cpo', produksiCpo);
+        writeValue('produksi_pk', produksiPk);
+        writeValue('baki_bts_selepas_diproses', bakiBts);
+    }
+
+    ['stok_cpo', 'stok_cpo_yesterday', 'pengeluaran_cpo', 'stok_pk', 'stok_pk_yesterday', 'pengeluaran_pk', 'baki_bts_semalam', 'bts_diterima', 'bts_diproses']
+        .forEach(function (name) {
+            const el = document.querySelector('[name="' + name + '"]');
+            if (el) {
+                el.addEventListener('input', recalculateDerivedFields);
+            }
+        });
+
+    recalculateDerivedFields();
+</script>
+@endpush

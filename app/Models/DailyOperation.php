@@ -10,8 +10,8 @@ class DailyOperation extends Model
 {
     protected $fillable = [
         'tarikh', 'mill_id', 'shift', 'officer_id',
-        'bts_diterima', 'bts_diproses', 'baki_stok_bts', 'jam_operasi', 'downtime_jam', 'sebab_downtime',
-        'pengeluaran_cpo', 'pengeluaran_pk', 'stok_cpo', 'stok_pk',
+        'bts_diterima', 'bts_diproses', 'baki_bts_semalam', 'baki_bts_selepas_diproses', 'jam_operasi', 'downtime_jam', 'sebab_downtime',
+        'pengeluaran_cpo', 'pengeluaran_pk', 'produksi_cpo', 'produksi_pk', 'stok_cpo', 'stok_pk', 'stok_cpo_yesterday', 'stok_pk_yesterday',
         'oer', 'ker', 'ffa', 'moisture', 'dirt', 'throughput', 'utilisation_rate',
         'isu_operasi', 'tindakan_pembetulan', 'catatan_tambahan', 'status',
     ];
@@ -31,15 +31,63 @@ class DailyOperation extends Model
     }
 
     /**
-     * NOTA PENTING: OER, KER, Throughput dan Utilisation TIDAK dikira automatik.
-     * Nilai sebenar datang dari sistem lab kualiti / operasi yang berasingan,
-     * dan di-key-in oleh Pegawai Kilang pada keesokan harinya (T+1) melalui
-     * menu "Kemaskini Kualiti". Semua field ini boleh null sehingga dikemaskini.
+     * Kira secara automatik OER dan KER berdasarkan nilai produksi dan BTS diproses.
+     * OER = (produksi_cpo / bts_diproses) * 100
+     * KER = (produksi_pk / bts_diproses) * 100
      */
     public function calculateKpi(): void
     {
-        // Tiada auto-calculation. Disimpan sebagai placeholder method
-        // sekiranya formula automatik diperlukan semula pada masa hadapan.
+        $btsDiproses = $this->bts_diproses ?? 0;
+        $produksiCpo = $this->produksi_cpo ?? 0;
+        $produksiPk = $this->produksi_pk ?? 0;
+
+        if ($btsDiproses > 0) {
+            $this->oer = round(($produksiCpo / $btsDiproses) * 100, 2);
+            $this->ker = round(($produksiPk / $btsDiproses) * 100, 2);
+        } else {
+            $this->oer = 0;
+            $this->ker = 0;
+        }
+
+        if ($this->throughput !== null && $this->throughput >= 0) {
+            $capacity = $this->getMillCapacity();
+            if ($capacity > 0) {
+                $this->utilisation_rate = round(($this->throughput / $capacity) * 100, 2);
+            } else {
+                $this->utilisation_rate = 0;
+            }
+        }
+    }
+
+    public function getMillCapacity(): float
+    {
+        $code = $this->mill?->code ?? null;
+
+        return match ($code) {
+            'KHG' => 60.0,
+            'BBJ' => 30.0,
+            default => 0.0,
+        };
+    }
+
+    public function computeThroughput(): float
+    {
+        if (! isset($this->bts_diproses) || ! isset($this->jam_operasi) || $this->jam_operasi <= 0) {
+            return 0.0;
+        }
+
+        return round($this->bts_diproses / $this->jam_operasi, 2);
+    }
+
+    public function computeUtilisationRate(float $throughput): float
+    {
+        $capacity = $this->getMillCapacity();
+
+        if ($capacity <= 0 || $throughput <= 0) {
+            return 0.0;
+        }
+
+        return round(($throughput / $capacity) * 100, 2);
     }
 
     public function mill(): BelongsTo
@@ -71,5 +119,13 @@ class DailyOperation extends Model
     public function scopeForYear($query, $year)
     {
         return $query->whereYear('tarikh', $year);
+    }
+
+    public function scopeOperated($query)
+    {
+        return $query->where(function ($query) {
+            $query->where('bts_diproses', '>', 0)
+                  ->orWhere('jam_operasi', '>', 0);
+        });
     }
 }
