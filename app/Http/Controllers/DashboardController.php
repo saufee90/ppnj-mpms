@@ -62,9 +62,6 @@ class DashboardController extends Controller
             ->orderByDesc('id')
             ->first();
 
-        // Label tarikh untuk metrik "semalam" adalah sehari sebelum tarikh paparan dashboard.
-        $operationalStatusDate = Carbon::parse($displayDate)->subDay()->translatedFormat('d F Y');
-
         $operationalStatus = [
             'baki_bts_selepas_diproses' => (float) ($latestOperationalRecord?->baki_bts_selepas_diproses ?? 0),
             'stok_cpo_semalam' => (float) ($latestOperationalRecord?->stok_cpo_yesterday ?? 0),
@@ -86,6 +83,10 @@ class DashboardController extends Controller
                 'mill_id' => $mill->id,
                 'code' => $mill->code,
                 'name' => $mill->name,
+                'source_tarikh' => $latestMillRecord?->tarikh?->toDateString(),
+                'source_tarikh_text' => $latestMillRecord?->tarikh
+                    ? $latestMillRecord->tarikh->translatedFormat('d F Y')
+                    : '-',
                 'baki_bts_selepas_diproses' => (float) ($latestMillRecord?->baki_bts_selepas_diproses ?? 0),
                 'stok_cpo_semalam' => (float) ($latestMillRecord?->stok_cpo_yesterday ?? 0),
             ];
@@ -131,76 +132,33 @@ class DashboardController extends Controller
             }
         }
 
-        $trendStart = now()->subDays(13)->toDateString();
+        $trendStart = now()->startOfMonth()->toDateString();
+        $trendEnd = now()->toDateString();
         $trendData = (clone $baseQuery)
-            ->where('tarikh', '>=', $trendStart)
+            ->whereBetween('tarikh', [$trendStart, $trendEnd])
             ->orderBy('tarikh')
             ->get()
             ->groupBy(fn ($row) => $row->tarikh->toDateString());
 
         $labels = [];
         $btsProcessedTrend = [];
-        $cpoTrend = [];
         $oerTrend = [];
         $kerTrend = [];
+        $downtimeTrend = [];
 
-        for ($i = 13; $i >= 0; $i--) {
-            $date = now()->subDays($i)->toDateString();
-            $labels[] = now()->subDays($i)->format('d/m');
+        $cursor = Carbon::parse($trendStart);
+        $endCursor = Carbon::parse($trendEnd);
+
+        while ($cursor->lte($endCursor)) {
+            $date = $cursor->toDateString();
+            $labels[] = $cursor->format('d/m');
             $rows = $trendData->get($date, collect());
             $btsProcessedTrend[] = round($rows->sum('bts_diproses'), 2);
-            $cpoTrend[] = round($rows->sum('pengeluaran_cpo'), 2);
             $oerTrend[] = round($this->computeRateFromRows($rows, 'produksi_cpo'), 2);
             $kerTrend[] = round($this->computeRateFromRows($rows, 'produksi_pk'), 2);
-        }
+            $downtimeTrend[] = round((float) $rows->sum('downtime_jam'), 2);
 
-        $chartMills = $selectedMillId
-            ? $mills->where('id', (int) $selectedMillId)->values()
-            : $mills->values();
-
-        $chartOperationDate = (clone $baseQuery)
-            ->orderByDesc('tarikh')
-            ->orderByDesc('id')
-            ->first()?->tarikh?->toDateString();
-
-        $comparisonLabels = $chartMills->pluck('name');
-        $comparisonBts = $chartMills->map(function ($mill) use ($chartOperationDate) {
-            if (! $chartOperationDate) {
-                return 0;
-            }
-
-            return DailyOperation::where('mill_id', $mill->id)
-                ->whereDate('tarikh', $chartOperationDate)
-                ->sum('bts_diproses');
-        });
-        $comparisonDowntime = $chartMills->map(function ($mill) use ($chartOperationDate) {
-            if (! $chartOperationDate) {
-                return 0;
-            }
-
-            return DailyOperation::where('mill_id', $mill->id)
-                ->whereDate('tarikh', $chartOperationDate)
-                ->sum('downtime_jam');
-        });
-
-        $downtimeTrendByMill = collect();
-        if (! $canViewComparisonCharts) {
-            $recentMillDowntime = (clone $baseQuery)
-                ->orderByDesc('tarikh')
-                ->orderByDesc('id')
-                ->get()
-                ->groupBy(fn ($row) => $row->tarikh->toDateString())
-                ->take(14)
-                ->reverse();
-
-            $downtimeTrendByMill = [
-                'labels' => $recentMillDowntime->keys()
-                    ->map(fn ($date) => Carbon::parse($date)->format('d/m'))
-                    ->values(),
-                'values' => $recentMillDowntime->map(function ($rows) {
-                    return round((float) $rows->sum('downtime_jam'), 2);
-                })->values(),
-            ];
+            $cursor->addDay();
         }
 
         $target = KpiTarget::getActiveTarget($selectedMillId, now()->year);
@@ -288,18 +246,13 @@ class DashboardController extends Controller
             'lastUpdatedText' => $lastUpdatedText,
             'operationalStatus' => $operationalStatus,
             'operationalStatusByMill' => $operationalStatusByMill,
-            'operationalStatusDate' => $operationalStatusDate,
             'summary' => $summary,
             'millsBelumHantar' => $millsBelumHantar,
             'labels' => $labels,
             'btsProcessedTrend' => $btsProcessedTrend,
-            'cpoTrend' => $cpoTrend,
             'oerTrend' => $oerTrend,
             'kerTrend' => $kerTrend,
-            'comparisonLabels' => $comparisonLabels,
-            'comparisonBts' => $comparisonBts,
-            'comparisonDowntime' => $comparisonDowntime,
-            'downtimeTrendByMill' => $downtimeTrendByMill,
+            'downtimeTrend' => $downtimeTrend,
             'target' => $target,
             'qualityPendingCount' => $qualityPendingCount,
             'dailyMetrics' => $dailyMetrics,

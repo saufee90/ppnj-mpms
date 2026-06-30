@@ -29,14 +29,14 @@
                 <div class="rounded-md p-3" style="background-color: {{ $millStatus['code'] === 'KHG' ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.12)' }};">
                     <div style="min-height: 52px;">
                         <p class="text-sm md:text-base font-semibold" style="color: {{ $millStatus['code'] === 'KHG' ? '#111827' : 'rgba(255,255,255,0.92)' }};">Baki BTS Selepas Diproses</p>
-                        <p class="text-xs md:text-sm" style="color: {{ $millStatus['code'] === 'KHG' ? '#1F2937' : 'rgba(255,255,255,0.84)' }};">pada: {{ $operationalStatusDate }}</p>
+                        <p class="text-xs md:text-sm" style="color: {{ $millStatus['code'] === 'KHG' ? '#1F2937' : 'rgba(255,255,255,0.84)' }};">pada: {{ $millStatus['source_tarikh_text'] }}</p>
                     </div>
                     <p class="text-3xl md:text-4xl font-extrabold leading-tight mt-2" style="color: {{ $millStatus['code'] === 'KHG' ? '#111827' : '#FFFFFF' }};">{{ number_format($millStatus['baki_bts_selepas_diproses'] ?? 0, 2) }} <span class="text-lg md:text-xl font-bold">MT</span></p>
                 </div>
                 <div class="rounded-md p-3" style="background-color: {{ $millStatus['code'] === 'KHG' ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.12)' }};">
                     <div style="min-height: 52px;">
                         <p class="text-sm md:text-base font-semibold" style="color: {{ $millStatus['code'] === 'KHG' ? '#111827' : 'rgba(255,255,255,0.92)' }};">Stok CPO Semalam</p>
-                        <p class="text-xs md:text-sm" style="color: {{ $millStatus['code'] === 'KHG' ? '#1F2937' : 'rgba(255,255,255,0.84)' }};">pada: {{ $operationalStatusDate }}</p>
+                        <p class="text-xs md:text-sm" style="color: {{ $millStatus['code'] === 'KHG' ? '#1F2937' : 'rgba(255,255,255,0.84)' }};">pada: {{ $millStatus['source_tarikh_text'] }}</p>
                     </div>
                     <p class="text-3xl md:text-4xl font-extrabold leading-tight mt-2" style="color: {{ $millStatus['code'] === 'KHG' ? '#111827' : '#FFFFFF' }};">{{ number_format($millStatus['stok_cpo_semalam'] ?? 0, 2) }} <span class="text-lg md:text-xl font-bold">MT</span></p>
                 </div>
@@ -125,46 +125,33 @@
             </div>
         </div>
 
-        <!-- Jualan CPO -->
+        <!-- Throughput -->
         <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-t-4" style="border-color: #0B5D32;">
             <div class="flex items-center justify-between mb-4">
-                <p class="text-gray-600 font-medium">🛒 Jualan CPO (MT)</p>
+                <p class="text-gray-600 font-medium">⚡ Throughput (MT/Jam)</p>
             </div>
-            <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['penjualan_cpo'], 2) }}</p>
+            @php
+                $dailyThroughput = ($dailyMetrics['jam_proses'] ?? 0) > 0 ? (($dailyMetrics['bts_diproses'] ?? 0) / $dailyMetrics['jam_proses']) : 0;
+                $mtdThroughput = ($mtdMetrics['jam_proses'] ?? 0) > 0 ? (($mtdMetrics['bts_diproses'] ?? 0) / $mtdMetrics['jam_proses']) : 0;
+                $ytdThroughput = ($ytdMetrics['jam_proses'] ?? 0) > 0 ? (($ytdMetrics['bts_diproses'] ?? 0) / $ytdMetrics['jam_proses']) : 0;
+            @endphp
+            <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyThroughput, 2) }}</p>
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
                     <p class="text-xs text-gray-600 mb-1">Bulan Ini (MTD)</p>
-                    <p class="text-sm font-semibold text-blue-700">{{ number_format($mtdMetrics['pengeluaran_cpo'], 2) }}</p>
+                    <p class="text-sm font-semibold text-blue-700">{{ number_format($mtdThroughput, 2) }}</p>
                 </div>
                 <div class="bg-yellow-50 rounded-lg p-3 border-l-2 border-yellow-400">
                     <p class="text-xs text-gray-600 mb-1">Tahun Ini (YTD)</p>
-                    <p class="text-sm font-semibold text-yellow-700">{{ number_format($ytdMetrics['pengeluaran_cpo'], 2) }}</p>
+                    <p class="text-sm font-semibold text-yellow-700">{{ number_format($ytdThroughput, 2) }}</p>
                 </div>
             </div>
         </div>
 
-        <!-- Jualan PK -->
+        <!-- Pengeluaran CPO -->
         <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-t-4" style="border-color: #0B5D32;">
             <div class="flex items-center justify-between mb-4">
-                <p class="text-gray-600 font-medium">🛒 Jualan PK (MT)</p>
-            </div>
-            <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['penjualan_pk'], 2) }}</p>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
-                    <p class="text-xs text-gray-600 mb-1">Bulan Ini (MTD)</p>
-                    <p class="text-sm font-semibold text-blue-700">{{ number_format($mtdMetrics['pengeluaran_pk'], 2) }}</p>
-                </div>
-                <div class="bg-yellow-50 rounded-lg p-3 border-l-2 border-yellow-400">
-                    <p class="text-xs text-gray-600 mb-1">Tahun Ini (YTD)</p>
-                    <p class="text-sm font-semibold text-yellow-700">{{ number_format($ytdMetrics['pengeluaran_pk'], 2) }}</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Produksi CPO -->
-        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-t-4" style="border-color: #0B5D32;">
-            <div class="flex items-center justify-between mb-4">
-                <p class="text-gray-600 font-medium">🛢️ Produksi CPO (MT)</p>
+                <p class="text-gray-600 font-medium">🛢️ Pengeluaran CPO (MT)</p>
             </div>
             <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['produksi_cpo'] ?? 0, 2) }}</p>
             <div class="grid grid-cols-2 gap-3">
@@ -179,20 +166,20 @@
             </div>
         </div>
 
-        <!-- Produksi PK -->
+        <!-- Jualan CPO -->
         <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-t-4" style="border-color: #0B5D32;">
             <div class="flex items-center justify-between mb-4">
-                <p class="text-gray-600 font-medium">🎯 Produksi PK (MT)</p>
+                <p class="text-gray-600 font-medium">🛒 Jualan CPO (MT)</p>
             </div>
-            <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['produksi_pk'] ?? 0, 2) }}</p>
+            <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['penjualan_cpo'], 2) }}</p>
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
                     <p class="text-xs text-gray-600 mb-1">Bulan Ini (MTD)</p>
-                    <p class="text-sm font-semibold text-blue-700">{{ number_format($mtdMetrics['produksi_pk'] ?? 0, 2) }}</p>
+                    <p class="text-sm font-semibold text-blue-700">{{ number_format($mtdMetrics['pengeluaran_cpo'], 2) }}</p>
                 </div>
                 <div class="bg-yellow-50 rounded-lg p-3 border-l-2 border-yellow-400">
                     <p class="text-xs text-gray-600 mb-1">Tahun Ini (YTD)</p>
-                    <p class="text-sm font-semibold text-yellow-700">{{ number_format($ytdMetrics['produksi_pk'] ?? 0, 2) }}</p>
+                    <p class="text-sm font-semibold text-yellow-700">{{ number_format($ytdMetrics['pengeluaran_cpo'], 2) }}</p>
                 </div>
             </div>
         </div>
@@ -215,6 +202,42 @@
             </div>
         </div>
 
+        <!-- Pengeluaran PK -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-t-4" style="border-color: #0B5D32;">
+            <div class="flex items-center justify-between mb-4">
+                <p class="text-gray-600 font-medium">🎯 Pengeluaran PK (MT)</p>
+            </div>
+            <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['produksi_pk'] ?? 0, 2) }}</p>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
+                    <p class="text-xs text-gray-600 mb-1">Bulan Ini (MTD)</p>
+                    <p class="text-sm font-semibold text-blue-700">{{ number_format($mtdMetrics['produksi_pk'] ?? 0, 2) }}</p>
+                </div>
+                <div class="bg-yellow-50 rounded-lg p-3 border-l-2 border-yellow-400">
+                    <p class="text-xs text-gray-600 mb-1">Tahun Ini (YTD)</p>
+                    <p class="text-sm font-semibold text-yellow-700">{{ number_format($ytdMetrics['produksi_pk'] ?? 0, 2) }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Jualan PK -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-t-4" style="border-color: #0B5D32;">
+            <div class="flex items-center justify-between mb-4">
+                <p class="text-gray-600 font-medium">🛒 Jualan PK (MT)</p>
+            </div>
+            <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['penjualan_pk'], 2) }}</p>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
+                    <p class="text-xs text-gray-600 mb-1">Bulan Ini (MTD)</p>
+                    <p class="text-sm font-semibold text-blue-700">{{ number_format($mtdMetrics['pengeluaran_pk'], 2) }}</p>
+                </div>
+                <div class="bg-yellow-50 rounded-lg p-3 border-l-2 border-yellow-400">
+                    <p class="text-xs text-gray-600 mb-1">Tahun Ini (YTD)</p>
+                    <p class="text-sm font-semibold text-yellow-700">{{ number_format($ytdMetrics['pengeluaran_pk'], 2) }}</p>
+                </div>
+            </div>
+        </div>
+
         <!-- KER -->
         <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-t-4" style="border-color: #0B5D32;">
             <div class="flex items-center justify-between mb-4">
@@ -233,56 +256,27 @@
             </div>
         </div>
 
-        <!-- Jumlah Jam Proses -->
-        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-t-4" style="border-color: #0B5D32;">
-            <div class="flex items-center justify-between mb-4">
-                <p class="text-gray-600 font-medium">⏱️ Jumlah Jam Proses (jam)</p>
-            </div>
-            <p class="text-4xl font-bold mb-4" style="color: #0B5D32;">{{ number_format($dailyMetrics['jam_proses'], 2) }}</p>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
-                    <p class="text-xs text-gray-600 mb-1">Bulan Ini (MTD)</p>
-                    <p class="text-sm font-semibold text-blue-700">{{ number_format($mtdMetrics['jam_proses'], 2) }}</p>
-                </div>
-                <div class="bg-yellow-50 rounded-lg p-3 border-l-2 border-yellow-400">
-                    <p class="text-xs text-gray-600 mb-1">Tahun Ini (YTD)</p>
-                    <p class="text-sm font-semibold text-yellow-700">{{ number_format($ytdMetrics['jam_proses'], 2) }}</p>
-                </div>
-            </div>
-        </div>
-
     </div>
 </div>
 
 <!-- Carta -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="bg-white rounded-xl shadow-sm p-4">
-        <p class="text-sm font-semibold text-gray-600 mb-3">Trend BTS Diproses Harian (14 hari)</p>
+        <p class="text-sm font-semibold text-gray-600 mb-3">Trend BTS Diproses (Bulan Semasa)</p>
         <canvas id="chartBts"></canvas>
     </div>
     <div class="bg-white rounded-xl shadow-sm p-4">
-        <p class="text-sm font-semibold text-gray-600 mb-3">Trend Pengeluaran CPO Harian (14 hari)</p>
-        <canvas id="chartCpo"></canvas>
+        <p class="text-sm font-semibold text-gray-600 mb-3">Trend OER (Bulan Semasa)</p>
+        <canvas id="chartOer"></canvas>
     </div>
     <div class="bg-white rounded-xl shadow-sm p-4">
-        <p class="text-sm font-semibold text-gray-600 mb-3">Trend OER vs KER (14 hari)</p>
-        <canvas id="chartOerKer"></canvas>
+        <p class="text-sm font-semibold text-gray-600 mb-3">Trend KER (Bulan Semasa)</p>
+        <canvas id="chartKer"></canvas>
     </div>
-    @if($canViewComparisonCharts)
     <div class="bg-white rounded-xl shadow-sm p-4">
-        <p class="text-sm font-semibold text-gray-600 mb-3">Perbandingan Kilang Hari Ini (BTS Diproses)</p>
-        <canvas id="chartComparison"></canvas>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm p-4 lg:col-span-2">
-        <p class="text-sm font-semibold text-gray-600 mb-3">Downtime Mengikut Kilang Hari Ini</p>
+        <p class="text-sm font-semibold text-gray-600 mb-3">Trend Downtime (Bulan Semasa)</p>
         <canvas id="chartDowntime"></canvas>
     </div>
-    @else
-    <div class="bg-white rounded-xl shadow-sm p-4">
-        <p class="text-sm font-semibold text-gray-600 mb-3">Trend Downtime Kilang (14 Hari)</p>
-        <canvas id="chartDowntimeTrend"></canvas>
-    </div>
-    @endif
 </div>
 
 @endsection
@@ -299,49 +293,22 @@ new Chart(document.getElementById('chartBts'), {
     options: { responsive: true }
 });
 
-new Chart(document.getElementById('chartCpo'), {
+new Chart(document.getElementById('chartOer'), {
     type: 'line',
-    data: { labels, datasets: [{ label: 'CPO (MT)', data: @json($cpoTrend), borderColor: goldColor, backgroundColor: goldColor+'30', fill: true, tension: 0.3 }] },
+    data: { labels, datasets: [{ label: 'OER (%)', data: @json($oerTrend), borderColor: greenColor, backgroundColor: greenColor+'20', fill: true, tension: 0.3 }] },
     options: { responsive: true }
 });
 
-new Chart(document.getElementById('chartOerKer'), {
+new Chart(document.getElementById('chartKer'), {
     type: 'line',
-    data: { labels, datasets: [
-        { label: 'OER (%)', data: @json($oerTrend), borderColor: greenColor, tension: 0.3 },
-        { label: 'KER (%)', data: @json($kerTrend), borderColor: goldColor, tension: 0.3 }
-    ]},
-    options: { responsive: true }
-});
-
-@if($canViewComparisonCharts)
-new Chart(document.getElementById('chartComparison'), {
-    type: 'bar',
-    data: { labels: @json($comparisonLabels), datasets: [{ label: 'BTS Diproses (MT)', data: @json($comparisonBts), backgroundColor: greenColor }] },
+    data: { labels, datasets: [{ label: 'KER (%)', data: @json($kerTrend), borderColor: goldColor, backgroundColor: goldColor+'30', fill: true, tension: 0.3 }] },
     options: { responsive: true }
 });
 
 new Chart(document.getElementById('chartDowntime'), {
-    type: 'bar',
-    data: { labels: @json($comparisonLabels), datasets: [{ label: 'Downtime (jam)', data: @json($comparisonDowntime), backgroundColor: '#DC2626' }] },
-    options: { responsive: true, indexAxis: 'y' }
-});
-@else
-new Chart(document.getElementById('chartDowntimeTrend'), {
     type: 'line',
-    data: {
-        labels: @json($downtimeTrendByMill['labels'] ?? []),
-        datasets: [{
-            label: 'Downtime (jam)',
-            data: @json($downtimeTrendByMill['values'] ?? []),
-            borderColor: '#DC2626',
-            backgroundColor: '#DC262630',
-            fill: true,
-            tension: 0.3
-        }]
-    },
+    data: { labels, datasets: [{ label: 'Downtime (jam)', data: @json($downtimeTrend), borderColor: '#DC2626', backgroundColor: '#DC262620', fill: true, tension: 0.3 }] },
     options: { responsive: true }
 });
-@endif
 </script>
 @endsection
