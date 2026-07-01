@@ -20,14 +20,22 @@ class MillComparisonController extends Controller
                 $q->whereMonth('tarikh', $month);
             }
             $rows = $q->get();
+            $ratioRows = $rows->filter(fn ($row) => (float) $row->bts_diproses > 0);
+            $sumBtsDiprosesForRatio = (float) $ratioRows->sum('bts_diproses');
+            $oer = $sumBtsDiprosesForRatio > 0
+                ? (((float) $ratioRows->sum('produksi_cpo')) / $sumBtsDiprosesForRatio) * 100
+                : 0;
+            $ker = $sumBtsDiprosesForRatio > 0
+                ? (((float) $ratioRows->sum('produksi_pk')) / $sumBtsDiprosesForRatio) * 100
+                : 0;
 
             return [
                 'mill' => $mill->name,
                 'bts_diproses' => round($rows->sum('bts_diproses'), 2),
                 'cpo' => round($rows->sum('pengeluaran_cpo'), 2),
                 'pk' => round($rows->sum('pengeluaran_pk'), 2),
-                'oer' => round($rows->avg('oer') ?? 0, 2),
-                'ker' => round($rows->avg('ker') ?? 0, 2),
+                'oer' => round($oer, 2),
+                'ker' => round($ker, 2),
                 'downtime' => round($rows->sum('downtime_jam'), 2),
                 'ffa' => round($rows->avg('ffa') ?? 0, 2),
                 'utilisation' => round($rows->avg('utilisation_rate') ?? 0, 2),
