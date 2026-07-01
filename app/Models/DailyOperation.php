@@ -10,6 +10,7 @@ class DailyOperation extends Model
 {
     protected $fillable = [
         'tarikh', 'mill_id', 'shift', 'officer_id',
+        'operation_status',
         'bts_diterima', 'bts_diproses', 'baki_bts_semalam', 'baki_bts_selepas_diproses', 'jam_operasi', 'downtime_jam', 'sebab_downtime',
         'pengeluaran_cpo', 'pengeluaran_pk', 'produksi_cpo', 'produksi_pk', 'stok_cpo', 'stok_pk', 'stok_cpo_yesterday', 'stok_pk_yesterday',
         'oer', 'ker', 'ffa', 'moisture', 'dirt', 'throughput', 'utilisation_rate',
@@ -72,6 +73,10 @@ class DailyOperation extends Model
 
     public function computeThroughput(): float
     {
+        if (isset($this->operation_status) && $this->operation_status !== 'Operasi') {
+            return 0.0;
+        }
+
         if (! isset($this->bts_diproses) || ! isset($this->jam_operasi) || $this->jam_operasi <= 0) {
             return 0.0;
         }
@@ -124,8 +129,14 @@ class DailyOperation extends Model
     public function scopeOperated($query)
     {
         return $query->where(function ($query) {
-            $query->where('bts_diproses', '>', 0)
-                  ->orWhere('jam_operasi', '>', 0);
+            $query->where('operation_status', 'Operasi')
+                ->orWhere(function ($legacyQuery) {
+                    $legacyQuery->whereNull('operation_status')
+                        ->where(function ($fallbackQuery) {
+                            $fallbackQuery->where('bts_diproses', '>', 0)
+                                ->orWhere('jam_operasi', '>', 0);
+                        });
+                });
         });
     }
 }
