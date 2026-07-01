@@ -69,6 +69,8 @@ class DailyOperationController extends Controller
             $validated['produksi_pk'] = $this->resolveManualProductionValue($validated, 'produksi_pk');
         }
 
+        $this->assertNonNegativeProduction($validated);
+
         $validated['oer'] = $this->calculateOer($validated);
         $validated['ker'] = $this->calculateKer($validated);
 
@@ -205,6 +207,8 @@ class DailyOperationController extends Controller
             $validated['produksi_cpo'] = $this->resolveManualProductionValue($validated, 'produksi_cpo');
             $validated['produksi_pk'] = $this->resolveManualProductionValue($validated, 'produksi_pk');
         }
+
+        $this->assertNonNegativeProduction($validated);
 
         $validated['oer'] = $this->calculateOer($validated);
         $validated['ker'] = $this->calculateKer($validated);
@@ -506,6 +510,19 @@ class DailyOperationController extends Controller
         if ($bakiBtsSelepasDiproses < 0) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'bts_diproses' => 'Baki BTS Selepas Diproses tidak boleh negatif. Sila semak BTS Diproses.',
+            ]);
+        }
+    }
+
+    private function assertNonNegativeProduction(array $data): void
+    {
+        $produksiCpo = (float) ($data['produksi_cpo'] ?? 0);
+        $produksiPk = (float) ($data['produksi_pk'] ?? 0);
+
+        if ($produksiCpo < 0 || $produksiPk < 0) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'produksi_cpo' => 'Pengeluaran CPO/PK tidak boleh negatif. Sila semak Stok Semalam, Stok Hari Ini dan Jualan.',
+                'produksi_pk' => 'Pengeluaran CPO/PK tidak boleh negatif. Sila semak Stok Semalam, Stok Hari Ini dan Jualan.',
             ]);
         }
     }
