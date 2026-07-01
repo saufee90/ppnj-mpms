@@ -482,16 +482,29 @@ class DailyOperationController extends Controller
             ->orderByDesc('tarikh')
             ->orderByDesc('id');
 
+        $previousMonthBakiQuery = DailyOperation::where('mill_id', $millId)
+            ->whereYear('tarikh', $selectedDate->year)
+            ->whereMonth('tarikh', $selectedDate->month)
+            ->where('tarikh', '<', $selectedDate->toDateString())
+            ->orderByDesc('tarikh')
+            ->orderByDesc('id');
+
         if ($ignoreId) {
             $previousQuery->where('id', '!=', $ignoreId);
+            $previousMonthBakiQuery->where('id', '!=', $ignoreId);
         }
 
         $previous = $previousQuery->first();
+        $previousMonthBaki = $previousMonthBakiQuery->first();
+
+        $bakiBtsSemalam = $selectedDate->day === 1
+            ? 0.0
+            : round((float) ($previousMonthBaki->baki_bts_selepas_diproses ?? 0), 2);
 
         if (! $previous) {
             return [
                 'can_edit' => true,
-                'baki_bts_semalam' => 0.0,
+                'baki_bts_semalam' => $bakiBtsSemalam,
                 'stok_cpo_yesterday' => 0.0,
                 'stok_pk_yesterday' => 0.0,
             ];
@@ -499,7 +512,7 @@ class DailyOperationController extends Controller
 
         return [
             'can_edit' => false,
-            'baki_bts_semalam' => round((float) ($previous->baki_bts_selepas_diproses ?? 0), 2),
+            'baki_bts_semalam' => $bakiBtsSemalam,
             'stok_cpo_yesterday' => round((float) ($previous->stok_cpo ?? 0), 2),
             'stok_pk_yesterday' => round((float) ($previous->stok_pk ?? 0), 2),
         ];
