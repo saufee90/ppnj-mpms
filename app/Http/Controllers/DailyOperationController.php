@@ -39,7 +39,9 @@ class DailyOperationController extends Controller
             'defaultBakiSemalam' => $opening['baki_bts_semalam'],
             'defaultStokCpoYesterday' => $opening['stok_cpo_yesterday'],
             'defaultStokPkYesterday' => $opening['stok_pk_yesterday'],
-            'canEditOpeningBalance' => $opening['can_edit'],
+            'canEditBakiBtsSemalam' => $opening['can_edit_baki_bts_semalam'],
+            'canEditStokCpoYesterday' => $opening['can_edit_stok_cpo_yesterday'],
+            'canEditStokPkYesterday' => $opening['can_edit_stok_pk_yesterday'],
         ]);
     }
 
@@ -166,7 +168,9 @@ class DailyOperationController extends Controller
         );
 
         return view('data-harian.edit', compact('daily_operation', 'mills') + [
-            'canEditOpeningBalance' => $opening['can_edit'],
+            'canEditBakiBtsSemalam' => $opening['can_edit_baki_bts_semalam'],
+            'canEditStokCpoYesterday' => $opening['can_edit_stok_cpo_yesterday'],
+            'canEditStokPkYesterday' => $opening['can_edit_stok_pk_yesterday'],
         ]);
     }
 
@@ -449,33 +453,69 @@ class DailyOperationController extends Controller
     {
         $opening = $this->resolveOpeningBalance((int) $data['mill_id'], (string) $data['tarikh'], $ignoreId);
 
-        if ($opening['can_edit']) {
+        if ($opening['can_edit_baki_bts_semalam']) {
             $data['baki_bts_semalam'] = round((float) ($data['baki_bts_semalam'] ?? 0), 2);
-            $data['stok_cpo_yesterday'] = round((float) ($data['stok_cpo_yesterday'] ?? 0), 2);
-            $data['stok_pk_yesterday'] = round((float) ($data['stok_pk_yesterday'] ?? 0), 2);
-
-            return $data;
+        } else {
+            $data['baki_bts_semalam'] = $opening['baki_bts_semalam'];
         }
 
-        $data['baki_bts_semalam'] = $opening['baki_bts_semalam'];
-        $data['stok_cpo_yesterday'] = $opening['stok_cpo_yesterday'];
-        $data['stok_pk_yesterday'] = $opening['stok_pk_yesterday'];
+        if ($opening['can_edit_stok_cpo_yesterday']) {
+            if ($opening['require_manual_stok_cpo_yesterday'] && $data['stok_cpo_yesterday'] === null) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'stok_cpo_yesterday' => 'Stok CPO Semalam wajib diisi pada hari pertama bulan.',
+                ]);
+            }
+
+            $data['stok_cpo_yesterday'] = round((float) ($data['stok_cpo_yesterday'] ?? 0), 2);
+        } else {
+            $data['stok_cpo_yesterday'] = $opening['stok_cpo_yesterday'];
+        }
+
+        if ($opening['can_edit_stok_pk_yesterday']) {
+            if ($opening['require_manual_stok_pk_yesterday'] && $data['stok_pk_yesterday'] === null) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'stok_pk_yesterday' => 'Stok PK Semalam wajib diisi pada hari pertama bulan.',
+                ]);
+            }
+
+            $data['stok_pk_yesterday'] = round((float) ($data['stok_pk_yesterday'] ?? 0), 2);
+        } else {
+            $data['stok_pk_yesterday'] = $opening['stok_pk_yesterday'];
+        }
 
         return $data;
     }
 
     private function resolveOpeningBalance(?int $millId, ?string $tarikh, ?int $ignoreId = null): array
     {
-        if (! $millId || ! $tarikh) {
+        if (! $tarikh) {
             return [
-                'can_edit' => true,
+                'can_edit_baki_bts_semalam' => true,
+                'can_edit_stok_cpo_yesterday' => true,
+                'can_edit_stok_pk_yesterday' => true,
+                'require_manual_stok_cpo_yesterday' => false,
+                'require_manual_stok_pk_yesterday' => false,
                 'baki_bts_semalam' => 0.0,
-                'stok_cpo_yesterday' => 0.0,
-                'stok_pk_yesterday' => 0.0,
+                'stok_cpo_yesterday' => null,
+                'stok_pk_yesterday' => null,
             ];
         }
 
         $selectedDate = Carbon::parse($tarikh);
+        $isFirstDayOfMonth = $selectedDate->day === 1;
+
+        if (! $millId) {
+            return [
+                'can_edit_baki_bts_semalam' => ! $isFirstDayOfMonth,
+                'can_edit_stok_cpo_yesterday' => $isFirstDayOfMonth,
+                'can_edit_stok_pk_yesterday' => $isFirstDayOfMonth,
+                'require_manual_stok_cpo_yesterday' => $isFirstDayOfMonth,
+                'require_manual_stok_pk_yesterday' => $isFirstDayOfMonth,
+                'baki_bts_semalam' => $isFirstDayOfMonth ? 0.0 : 0.0,
+                'stok_cpo_yesterday' => $isFirstDayOfMonth ? null : 0.0,
+                'stok_pk_yesterday' => $isFirstDayOfMonth ? null : 0.0,
+            ];
+        }
 
         $previousQuery = DailyOperation::where('mill_id', $millId)
             ->where('tarikh', '<', $selectedDate->toDateString())
@@ -497,21 +537,29 @@ class DailyOperationController extends Controller
         $previous = $previousQuery->first();
         $previousMonthBaki = $previousMonthBakiQuery->first();
 
-        $bakiBtsSemalam = $selectedDate->day === 1
+        $bakiBtsSemalam = $isFirstDayOfMonth
             ? 0.0
             : round((float) ($previousMonthBaki->baki_bts_selepas_diproses ?? 0), 2);
 
-        if (! $previous) {
+        if ($isFirstDayOfMonth) {
             return [
-                'can_edit' => true,
+                'can_edit_baki_bts_semalam' => false,
+                'can_edit_stok_cpo_yesterday' => true,
+                'can_edit_stok_pk_yesterday' => true,
+                'require_manual_stok_cpo_yesterday' => true,
+                'require_manual_stok_pk_yesterday' => true,
                 'baki_bts_semalam' => $bakiBtsSemalam,
-                'stok_cpo_yesterday' => 0.0,
-                'stok_pk_yesterday' => 0.0,
+                'stok_cpo_yesterday' => null,
+                'stok_pk_yesterday' => null,
             ];
         }
 
         return [
-            'can_edit' => false,
+            'can_edit_baki_bts_semalam' => false,
+            'can_edit_stok_cpo_yesterday' => false,
+            'can_edit_stok_pk_yesterday' => false,
+            'require_manual_stok_cpo_yesterday' => false,
+            'require_manual_stok_pk_yesterday' => false,
             'baki_bts_semalam' => $bakiBtsSemalam,
             'stok_cpo_yesterday' => round((float) ($previous->stok_cpo ?? 0), 2),
             'stok_pk_yesterday' => round((float) ($previous->stok_pk ?? 0), 2),

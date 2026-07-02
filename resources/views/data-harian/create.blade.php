@@ -45,7 +45,7 @@
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Baki BTS Semalam (MT)</label>
-                    <input type="number" step="0.01" name="baki_bts_semalam" value="{{ old('baki_bts_semalam', $defaultBakiSemalam) }}" @readonly(!($canEditOpeningBalance ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditOpeningBalance ?? false) ? 'bg-gray-100' : '' }}">
+                    <input type="number" step="0.01" name="baki_bts_semalam" value="{{ old('baki_bts_semalam', $defaultBakiSemalam) }}" @readonly(!($canEditBakiBtsSemalam ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditBakiBtsSemalam ?? false) ? 'bg-gray-100' : '' }}">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Baki BTS Selepas Diproses (MT)</label>
@@ -79,7 +79,7 @@
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Stok CPO Semalam (MT)</label>
-                    <input type="number" step="0.01" name="stok_cpo_yesterday" value="{{ old('stok_cpo_yesterday', $defaultStokCpoYesterday) }}" @readonly(!($canEditOpeningBalance ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditOpeningBalance ?? false) ? 'bg-gray-100' : '' }}">
+                    <input type="number" step="0.01" name="stok_cpo_yesterday" value="{{ old('stok_cpo_yesterday', $defaultStokCpoYesterday) }}" @readonly(!($canEditStokCpoYesterday ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditStokCpoYesterday ?? false) ? 'bg-gray-100' : '' }}">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Stok CPO Semasa (MT) *</label>
@@ -95,7 +95,7 @@
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Stok PK Semalam (MT)</label>
-                    <input type="number" step="0.01" name="stok_pk_yesterday" value="{{ old('stok_pk_yesterday', $defaultStokPkYesterday) }}" @readonly(!($canEditOpeningBalance ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditOpeningBalance ?? false) ? 'bg-gray-100' : '' }}">
+                    <input type="number" step="0.01" name="stok_pk_yesterday" value="{{ old('stok_pk_yesterday', $defaultStokPkYesterday) }}" @readonly(!($canEditStokPkYesterday ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditStokPkYesterday ?? false) ? 'bg-gray-100' : '' }}">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Stok PK Semasa (MT) *</label>
