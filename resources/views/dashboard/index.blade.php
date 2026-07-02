@@ -86,6 +86,9 @@
 <!-- Metrik Daily / MTD / YTD - Metric Cards -->
 <div class="mb-8">
     <h2 class="text-lg font-bold text-gray-800 mb-6">📊 Performa Harian, Bulanan & Tahunan</h2>
+    @if($showYtdBaselineNote ?? false)
+        <p class="text-xs text-gray-500 -mt-4 mb-5">YTD dikira bermula 01 Julai 2026</p>
+    @endif
     
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         

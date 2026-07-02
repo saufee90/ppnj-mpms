@@ -10,6 +10,8 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
+    private const YTD_BASELINE_DATE = '2026-07-01';
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -184,7 +186,15 @@ class DashboardController extends Controller
         }
 
         $mtd = (clone $baseQuery)->forMonth(now()->year, now()->month)->get();
-        $ytd = (clone $baseQuery)->forYear(now()->year)->get();
+
+        $currentYear = now()->year;
+        $ytdStartDate = $currentYear === 2026
+            ? Carbon::parse(self::YTD_BASELINE_DATE)->toDateString()
+            : Carbon::create($currentYear, 1, 1)->toDateString();
+
+        $ytd = (clone $baseQuery)
+            ->whereBetween('tarikh', [$ytdStartDate, now()->toDateString()])
+            ->get();
 
         // Kalkulasi metrik Daily/MTD/YTD untuk 6 KPI utama
         $dailyMetrics = [
@@ -258,6 +268,7 @@ class DashboardController extends Controller
             'dailyMetrics' => $dailyMetrics,
             'mtdMetrics' => $mtdMetrics,
             'ytdMetrics' => $ytdMetrics,
+            'showYtdBaselineNote' => $currentYear === 2026,
             'operatedDays' => $operatedDays,
             'referenceDays' => $referenceDays,
             'mtdCpo' => $mtd->sum('pengeluaran_cpo'),
