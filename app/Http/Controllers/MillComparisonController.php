@@ -20,14 +20,17 @@ class MillComparisonController extends Controller
                 $q->whereMonth('tarikh', $month);
             }
             $rows = $q->get();
-            $ratioRows = $rows->filter(fn ($row) => (float) $row->bts_diproses > 0);
-            $sumBtsDiprosesForRatio = (float) $ratioRows->sum('bts_diproses');
-            $oer = $sumBtsDiprosesForRatio > 0
-                ? (((float) $ratioRows->sum('produksi_cpo')) / $sumBtsDiprosesForRatio) * 100
-                : 0;
-            $ker = $sumBtsDiprosesForRatio > 0
-                ? (((float) $ratioRows->sum('produksi_pk')) / $sumBtsDiprosesForRatio) * 100
-                : 0;
+            $operatingRows = $rows->filter(function ($row) {
+                return (float) $row->bts_diproses > 0 && (float) $row->jam_operasi > 0;
+            });
+
+            $sumOperatingBtsDiproses = (float) $operatingRows->sum('bts_diproses');
+            $sumOperatingJam = (float) $operatingRows->sum('jam_operasi');
+
+            $oer = $this->computeRate((float) $operatingRows->sum('produksi_cpo'), $sumOperatingBtsDiproses);
+            $ker = $this->computeRate((float) $operatingRows->sum('produksi_pk'), $sumOperatingBtsDiproses);
+            $throughput = $sumOperatingJam > 0 ? round($sumOperatingBtsDiproses / $sumOperatingJam, 2) : 0;
+            $utilisation = $this->computeUtilisation($throughput, $mill->code);
 
             return [
                 'mill' => $mill->name,
@@ -37,11 +40,39 @@ class MillComparisonController extends Controller
                 'oer' => round($oer, 2),
                 'ker' => round($ker, 2),
                 'downtime' => round($rows->sum('downtime_jam'), 2),
-                'ffa' => round($rows->avg('ffa') ?? 0, 2),
-                'utilisation' => round($rows->avg('utilisation_rate') ?? 0, 2),
+                'ffa' => round($operatingRows->avg('ffa') ?? 0, 2),
+                'moisture' => round($operatingRows->avg('moisture') ?? 0, 2),
+                'dirt' => round($operatingRows->avg('dirt') ?? 0, 2),
+                'throughput' => round($throughput, 2),
+                'utilisation' => round($utilisation, 2),
             ];
         });
 
         return view('perbandingan.index', compact('mills', 'year', 'month', 'comparison'));
+    }
+
+    private function computeRate(float|int $production, float|int $btsDiproses): float
+    {
+        $btsDiproses = (float) $btsDiproses;
+        if ($btsDiproses <= 0) {
+            return 0.0;
+        }
+
+        return (((float) $production / $btsDiproses) * 100);
+    }
+
+    private function computeUtilisation(float $throughput, ?string $millCode): float
+    {
+        $capacity = match ($millCode) {
+            'KHG' => 60.0,
+            'BBJ' => 30.0,
+            default => 0.0,
+        };
+
+        if ($capacity <= 0 || $throughput <= 0) {
+            return 0.0;
+        }
+
+        return ($throughput / $capacity) * 100;
     }
 }
