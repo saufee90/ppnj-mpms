@@ -35,10 +35,10 @@
                 </div>
                 <div class="rounded-md p-3" style="background-color: {{ $millStatus['code'] === 'KHG' ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.12)' }};">
                     <div style="min-height: 52px;">
-                        <p class="text-sm md:text-base font-semibold" style="color: {{ $millStatus['code'] === 'KHG' ? '#111827' : 'rgba(255,255,255,0.92)' }};">Stok CPO Semalam</p>
+                        <p class="text-sm md:text-base font-semibold" style="color: {{ $millStatus['code'] === 'KHG' ? '#111827' : 'rgba(255,255,255,0.92)' }};">Stok CPO</p>
                         <p class="text-xs md:text-sm" style="color: {{ $millStatus['code'] === 'KHG' ? '#1F2937' : 'rgba(255,255,255,0.84)' }};">pada: {{ $millStatus['source_tarikh_text'] }}</p>
                     </div>
-                    <p class="text-3xl md:text-4xl font-extrabold leading-tight mt-2" style="color: {{ $millStatus['code'] === 'KHG' ? '#111827' : '#FFFFFF' }};">{{ number_format($millStatus['stok_cpo_semalam'] ?? 0, 2) }} <span class="text-lg md:text-xl font-bold">MT</span></p>
+                    <p class="text-3xl md:text-4xl font-extrabold leading-tight mt-2" style="color: {{ $millStatus['code'] === 'KHG' ? '#111827' : '#FFFFFF' }};">{{ number_format($millStatus['stok_cpo'] ?? 0, 2) }} <span class="text-lg md:text-xl font-bold">MT</span></p>
                 </div>
             </div>
         </div>

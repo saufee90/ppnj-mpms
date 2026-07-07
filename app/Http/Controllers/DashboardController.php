@@ -66,7 +66,7 @@ class DashboardController extends Controller
 
         $operationalStatus = [
             'baki_bts_selepas_diproses' => (float) ($latestOperationalRecord?->baki_bts_selepas_diproses ?? 0),
-            'stok_cpo_semalam' => (float) ($latestOperationalRecord?->stok_cpo_yesterday ?? 0),
+            'stok_cpo' => (float) ($latestOperationalRecord?->stok_cpo ?? 0),
         ];
 
         $statusMills = Mill::query()
@@ -90,7 +90,7 @@ class DashboardController extends Controller
                     ? $latestMillRecord->tarikh->translatedFormat('d F Y')
                     : '-',
                 'baki_bts_selepas_diproses' => (float) ($latestMillRecord?->baki_bts_selepas_diproses ?? 0),
-                'stok_cpo_semalam' => (float) ($latestMillRecord?->stok_cpo_yesterday ?? 0),
+                'stok_cpo' => (float) ($latestMillRecord?->stok_cpo ?? 0),
             ];
         });
 
