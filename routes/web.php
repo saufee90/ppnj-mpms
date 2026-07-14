@@ -36,6 +36,7 @@ Route::middleware('auth')->group(function () {
 
     // 1. Dashboard - semua role boleh lihat (data dikawal dalam controller ikut role)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::middleware('role:admin,pengurusan')->get('/dashboard/pdf', [DashboardController::class, 'downloadPdf'])->name('dashboard.pdf');
 
     // 4. Analisis Prestasi - semua role
     Route::get('/analisis-prestasi', [PerformanceAnalysisController::class, 'index'])->name('analisis.index');
