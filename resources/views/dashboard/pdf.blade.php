@@ -5,27 +5,29 @@
     <style>
         @page {
             size: A4 landscape;
-            margin: 16px 18px 18px 18px;
+            margin: 10px 12px 12px 12px;
         }
 
         body {
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 11px;
+            font-size: 10px;
             color: #1f2937;
             margin: 0;
             padding: 0;
+            line-height: 1.25;
         }
 
         .page {
             width: 100%;
+            page-break-after: avoid;
         }
 
         .header {
             display: table;
             width: 100%;
             border-bottom: 2px solid #0B5D32;
-            padding-bottom: 10px;
-            margin-bottom: 12px;
+            padding-bottom: 7px;
+            margin-bottom: 8px;
         }
 
         .header-cell {
@@ -34,11 +36,11 @@
         }
 
         .header-logo {
-            width: 110px;
+            width: 94px;
         }
 
         .header-logo img {
-            width: 96px;
+            width: 82px;
             height: auto;
             display: block;
         }
@@ -49,26 +51,26 @@
 
         .header-title h1 {
             margin: 0;
-            font-size: 18px;
+            font-size: 15px;
             color: #0B5D32;
             letter-spacing: 0.4px;
         }
 
         .header-title h2 {
             margin: 2px 0 0 0;
-            font-size: 14px;
+            font-size: 12px;
             color: #1f2937;
         }
 
         .header-title h3 {
-            margin: 4px 0 0 0;
-            font-size: 15px;
+            margin: 3px 0 0 0;
+            font-size: 13px;
             color: #111827;
         }
 
         .meta {
-            margin-top: 8px;
-            font-size: 10px;
+            margin-top: 6px;
+            font-size: 9px;
             color: #4b5563;
         }
 
@@ -77,8 +79,8 @@
         }
 
         .section-title {
-            margin: 8px 0 8px 0;
-            font-size: 12px;
+            margin: 6px 0 6px 0;
+            font-size: 11px;
             font-weight: bold;
             color: #0B5D32;
             text-transform: uppercase;
@@ -94,34 +96,34 @@
         .two-col td {
             width: 50%;
             vertical-align: top;
-            padding-right: 6px;
+            padding-right: 4px;
         }
 
         .two-col td:last-child {
             padding-right: 0;
-            padding-left: 6px;
+            padding-left: 4px;
         }
 
         .mill-card {
             border: 1px solid #d1d5db;
             border-top: 3px solid #0B5D32;
             border-radius: 6px;
-            padding: 8px;
+            padding: 6px;
             page-break-inside: avoid;
         }
 
         .mill-card h4 {
-            margin: 0 0 5px 0;
-            font-size: 13px;
+            margin: 0 0 4px 0;
+            font-size: 12px;
             color: #111827;
         }
 
         .status {
             display: inline-block;
-            margin-bottom: 6px;
-            padding: 3px 8px;
+            margin-bottom: 4px;
+            padding: 2px 7px;
             border-radius: 999px;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: bold;
             color: #0B5D32;
             background-color: #d1fae5;
@@ -133,8 +135,8 @@
         }
 
         .mill-meta {
-            margin: 0 0 6px 0;
-            font-size: 10px;
+            margin: 0 0 4px 0;
+            font-size: 9px;
             color: #6b7280;
         }
 
@@ -146,8 +148,8 @@
         .metrics th,
         .metrics td {
             border: 1px solid #d1d5db;
-            padding: 5px 6px;
-            font-size: 10px;
+            padding: 3px 4px;
+            font-size: 9px;
             text-align: left;
         }
 
@@ -168,14 +170,15 @@
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            margin-top: 2px;
+            margin-top: 1px;
+            page-break-inside: avoid;
         }
 
         .mtd-table th,
         .mtd-table td {
             border: 1px solid #d1d5db;
-            padding: 5px 6px;
-            font-size: 10px;
+            padding: 3px 4px;
+            font-size: 9px;
             text-align: center;
         }
 
@@ -216,13 +219,14 @@
         }
 
         .footer {
-            margin-top: 10px;
-            padding-top: 8px;
+            margin-top: 6px;
+            padding-top: 5px;
             border-top: 1px solid #d1d5db;
             text-align: center;
-            font-size: 9px;
+            font-size: 8.5px;
             color: #6b7280;
-            line-height: 1.4;
+            line-height: 1.25;
+            page-break-inside: avoid;
         }
     </style>
 </head>
@@ -243,7 +247,7 @@
                     <div><strong>Dijana Pada:</strong> {{ $generatedAtText }}</div>
                 </div>
             </div>
-            <div class="header-cell" style="width:110px;"></div>
+            <div class="header-cell" style="width:94px;"></div>
         </div>
 
         <div class="section-title">Ringkasan Harian Dua Kilang</div>
@@ -278,7 +282,7 @@
             </tr>
         </table>
 
-        <div class="section-title" style="margin-top: 10px;">Ringkasan MTD</div>
+        <div class="section-title" style="margin-top: 7px;">Ringkasan MTD</div>
         <table class="mtd-table">
             <tr>
                 <th style="width:28%;">Metrik</th>
@@ -327,14 +331,16 @@
             </tr>
         </table>
 
-        <div class="attention">
-            <h4>PERHATIAN PENGURUSAN</h4>
-            <ul>
-                @foreach($attentionMessages as $message)
-                    <li>{{ $message }}</li>
-                @endforeach
-            </ul>
-        </div>
+        @if(false)
+            <div class="attention">
+                <h4>PERHATIAN PENGURUSAN</h4>
+                <ul>
+                    @foreach($attentionMessages as $message)
+                        <li>{{ $message }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
 
         <div class="footer">
             <div>Laporan ini dijana secara automatik melalui</div>

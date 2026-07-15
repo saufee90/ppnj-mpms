@@ -13,6 +13,8 @@
     </div>
 
     @php
+        $isBbj = ($daily_operation->mill->code ?? null) === 'BBJ';
+
         $groups = [
             'Penerimaan & Pemprosesan' => [
                 'BTS Diterima (MT)' => number_format($daily_operation->bts_diterima,2),
@@ -24,13 +26,14 @@
             ],
             'Pengeluaran' => [
                 'Jualan CPO (MT)' => number_format($daily_operation->pengeluaran_cpo,2),
-                'Jualan PK (MT)' => number_format($daily_operation->pengeluaran_pk,2),
+                $isBbj ? 'Jualan PK kepada Pembeli Luar (MT)' : 'Jualan PK (MT)' => number_format($daily_operation->pengeluaran_pk,2),
+                $isBbj ? 'PK KCP to Hopper (MT)' : '__skip_pk_hopper__' => $isBbj ? number_format($daily_operation->pk_kcp_to_hopper ?? 0, 2) : null,
                 'Pengeluaran CPO (MT)' => $daily_operation->produksi_cpo !== null ? number_format($daily_operation->produksi_cpo,2) : '-',
                 'Pengeluaran PK (MT)' => $daily_operation->produksi_pk !== null ? number_format($daily_operation->produksi_pk,2) : '-',
                 'Stok CPO Semalam (MT)' => $daily_operation->stok_cpo_yesterday !== null ? number_format($daily_operation->stok_cpo_yesterday,2) : '-',
-                'Stok PK Semalam (MT)' => $daily_operation->stok_pk_yesterday !== null ? number_format($daily_operation->stok_pk_yesterday,2) : '-',
+                $isBbj ? 'Stok PK KCP Semalam (MT)' : 'Stok PK Semalam (MT)' => $daily_operation->stok_pk_yesterday !== null ? number_format($daily_operation->stok_pk_yesterday,2) : '-',
                 'Stok CPO (MT)' => number_format($daily_operation->stok_cpo,2),
-                'Stok PK (MT)' => number_format($daily_operation->stok_pk,2),
+                $isBbj ? 'Stok PK KCP (MT)' : 'Stok PK (MT)' => number_format($daily_operation->stok_pk,2),
             ],
             'Kualiti & KPI (Diisi T+1 oleh Pegawai Kilang)' => [
                 'OER (%)' => $daily_operation->oer !== null ? number_format($daily_operation->oer,2) : 'Belum diisi',
@@ -49,10 +52,12 @@
         <h4 class="text-sm font-semibold text-gray-600 mb-2">{{ $title }}</h4>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             @foreach($fields as $label => $value)
+            @if($label !== '__skip_pk_hopper__')
             <div class="bg-gray-50 rounded-lg p-3">
                 <p class="text-xs text-gray-400">{{ $label }}</p>
                 <p class="font-semibold">{{ $value }}</p>
             </div>
+            @endif
             @endforeach
         </div>
     </div>

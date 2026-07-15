@@ -67,8 +67,8 @@ class DailyOperationController extends Controller
             $validated['produksi_cpo'] = $this->calculateProduction($validated, 'stok_cpo');
             $validated['produksi_pk'] = $this->calculateProduction($validated, 'stok_pk');
         } else {
-            $validated['produksi_cpo'] = $this->resolveManualProductionValue($validated, 'produksi_cpo');
-            $validated['produksi_pk'] = $this->resolveManualProductionValue($validated, 'produksi_pk');
+            $validated['produksi_cpo'] = 0;
+            $validated['produksi_pk'] = 0;
         }
 
         $this->assertNonNegativeProduction($validated);
@@ -208,8 +208,8 @@ class DailyOperationController extends Controller
             $validated['produksi_cpo'] = $this->calculateProduction($validated, 'stok_cpo');
             $validated['produksi_pk'] = $this->calculateProduction($validated, 'stok_pk');
         } else {
-            $validated['produksi_cpo'] = $this->resolveManualProductionValue($validated, 'produksi_cpo');
-            $validated['produksi_pk'] = $this->resolveManualProductionValue($validated, 'produksi_pk');
+            $validated['produksi_cpo'] = 0;
+            $validated['produksi_pk'] = 0;
         }
 
         $this->assertNonNegativeProduction($validated);
@@ -329,6 +329,7 @@ class DailyOperationController extends Controller
 
             'pengeluaran_cpo' => ['required', 'numeric', 'min:0'],
             'pengeluaran_pk' => ['required', 'numeric', 'min:0'],
+            'pk_kcp_to_hopper' => [Rule::requiredIf(fn () => $this->isBukitBujangMillId((int) $request->input('mill_id'))), 'numeric', 'min:0'],
             'produksi_cpo' => ['nullable', 'numeric', 'min:0'],
             'produksi_pk' => ['nullable', 'numeric', 'min:0'],
             'stok_cpo_yesterday' => ['nullable', 'numeric', 'min:0'],
@@ -388,11 +389,6 @@ class DailyOperationController extends Controller
         return $data;
     }
 
-    private function resolveManualProductionValue(array $data, string $field): float
-    {
-        return round((float) ($data[$field] ?? 0), 2);
-    }
-
     private function resolveYesterdayStock(array $data, string $field, ?int $millId = null): float
     {
         $millId = $millId ?? $data['mill_id'];
@@ -421,6 +417,12 @@ class DailyOperationController extends Controller
         $yesterday = $data["{$field}_yesterday"] ?? 0;
         $salesField = $field === 'stok_cpo' ? 'pengeluaran_cpo' : 'pengeluaran_pk';
         $sales = $data[$salesField] ?? 0;
+
+        if ($field === 'stok_pk' && $this->isBukitBujangMillId((int) ($data['mill_id'] ?? 0))) {
+            $hopper = $data['pk_kcp_to_hopper'] ?? 0;
+
+            return round($stok - $yesterday + $sales + $hopper, 2);
+        }
 
         return round($stok - $yesterday + $sales, 2);
     }
@@ -596,4 +598,14 @@ class DailyOperationController extends Controller
 
         return $dailyOperation->tarikh->lt(now()->subDay()->startOfDay());
     }
+
+    private function isBukitBujangMillId(?int $millId): bool
+    {
+        if (! $millId) {
+            return false;
+        }
+
+        return Mill::whereKey($millId)->value('code') === 'BBJ';
+    }
+
 }

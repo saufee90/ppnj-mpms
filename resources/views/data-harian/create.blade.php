@@ -18,7 +18,7 @@
                     <select name="mill_id" required class="w-full border rounded-lg px-3 py-2 text-sm" onchange="refreshOpeningBalance(this.value)">
                         <option value="">Pilih Kilang</option>
                         @foreach($mills as $mill)
-                            <option value="{{ $mill->id }}" {{ (string)request('mill_id') === (string)$mill->id || (string)old('mill_id') === (string)$mill->id ? 'selected' : '' }}>{{ $mill->name }}</option>
+                            <option value="{{ $mill->id }}" data-code="{{ $mill->code }}" {{ (string)request('mill_id') === (string)$mill->id || (string)old('mill_id') === (string)$mill->id ? 'selected' : '' }}>{{ $mill->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -85,21 +85,30 @@
                     <label class="block text-xs text-gray-500 mb-1">Stok CPO Semasa (MT) *</label>
                     <input type="number" step="0.01" name="stok_cpo" value="{{ old('stok_cpo', 0) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Jualan PK (MT) *</label>
+                <div id="pk_sales_wrap">
+                    <label id="label_jualan_pk" class="block text-xs text-gray-500 mb-1">Jualan PK (MT) *</label>
                     <input type="number" step="0.01" name="pengeluaran_pk" value="{{ old('pengeluaran_pk', 0) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Pengeluaran PK (MT)</label>
-                    <input type="number" step="0.01" name="produksi_pk" value="{{ old('produksi_pk', 0) }}" class="w-full border rounded-lg px-3 py-2 text-sm">
+                <div id="pk_hopper_wrap" class="hidden">
+                    <label id="label_pk_kcp_to_hopper" class="block text-xs text-gray-500 mb-1">PK KCP to Hopper (MT)</label>
+                    <input type="number" step="0.01" name="pk_kcp_to_hopper" value="{{ old('pk_kcp_to_hopper', 0) }}" min="0" class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Stok PK Semalam (MT)</label>
-                    <input type="number" step="0.01" name="stok_pk_yesterday" value="{{ old('stok_pk_yesterday', $defaultStokPkYesterday) }}" @readonly(!($canEditStokPkYesterday ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditStokPkYesterday ?? false) ? 'bg-gray-100' : '' }}">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Stok PK Semasa (MT) *</label>
+                <div id="pk_current_wrap">
+                    <label id="label_stok_pk_semasa" class="block text-xs text-gray-500 mb-1">Stok PK Semasa (MT) *</label>
                     <input type="number" step="0.01" name="stok_pk" value="{{ old('stok_pk', 0) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div id="pk_production_wrap">
+                    <label id="label_produksi_pk" class="block text-xs text-gray-500 mb-1">Pengeluaran PK (MT)</label>
+                    <input id="produksi_pk_input" type="number" step="0.01" name="produksi_pk" value="{{ old('produksi_pk', 0) }}" class="w-full border rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div id="pemindahan_pk_kcp_wrapper" class="hidden md:col-span-2">
+                    <label class="block text-xs text-gray-500 mb-1">Pemindahan PK ke KCP (MT)</label>
+                    <input id="pemindahan_pk_kcp" type="number" step="0.01" value="0.00" readonly class="w-full border rounded-lg px-3 py-2 text-sm bg-green-50">
+                    <p class="text-xs text-gray-400 mt-1">Nilai dipaparkan secara automatik berdasarkan Pengeluaran PK.</p>
+                </div>
+                <div id="pk_yesterday_wrap">
+                    <label id="label_stok_pk_semalam" class="block text-xs text-gray-500 mb-1">Stok PK Semalam (MT)</label>
+                    <input type="number" step="0.01" name="stok_pk_yesterday" value="{{ old('stok_pk_yesterday', $defaultStokPkYesterday) }}" @readonly(!($canEditStokPkYesterday ?? false)) class="w-full border rounded-lg px-3 py-2 text-sm {{ !($canEditStokPkYesterday ?? false) ? 'bg-gray-100' : '' }}">
                 </div>
             </div>
             <p class="text-xs text-gray-400 mt-2">* OER dan KER dikira automatik berdasarkan produksi dan BTS diproses. FFA, Moisture dan Dirt masih perlu diisi melalui menu <strong>"Kemaskini Kualiti"</strong>.</p>
@@ -176,6 +185,91 @@
         el.value = (Math.round(value * 100) / 100).toFixed(2);
     }
 
+    function isBukitBujangSelected() {
+        const millSelect = document.querySelector('[name="mill_id"]');
+        if (!millSelect) return false;
+
+        const selectedOption = millSelect.options[millSelect.selectedIndex];
+        if (!selectedOption) return false;
+
+        return (selectedOption.dataset.code || '').toUpperCase() === 'BBJ';
+    }
+
+    function syncPemindahanPkKcp() {
+        const transferEl = document.getElementById('pemindahan_pk_kcp');
+        if (!transferEl) return;
+        transferEl.value = parseValue('produksi_pk').toFixed(2);
+    }
+
+    function updatePkLabelsAndTransferVisibility() {
+        const isKbb = isBukitBujangSelected();
+        const salesWrap = document.getElementById('pk_sales_wrap');
+        const hopperWrap = document.getElementById('pk_hopper_wrap');
+        const currentWrap = document.getElementById('pk_current_wrap');
+        const productionWrap = document.getElementById('pk_production_wrap');
+        const yesterdayWrap = document.getElementById('pk_yesterday_wrap');
+        const stokSemalamLabel = document.getElementById('label_stok_pk_semalam');
+        const jualanPkLabel = document.getElementById('label_jualan_pk');
+        const stokSemasaLabel = document.getElementById('label_stok_pk_semasa');
+        const hopperLabel = document.getElementById('label_pk_kcp_to_hopper');
+        const produksiPkLabel = document.getElementById('label_produksi_pk');
+        const produksiPkInput = document.getElementById('produksi_pk_input');
+        const transferWrapper = document.getElementById('pemindahan_pk_kcp_wrapper');
+
+        if (salesWrap) {
+            salesWrap.style.order = isKbb ? '2' : '';
+        }
+
+        if (hopperWrap) {
+            hopperWrap.style.order = isKbb ? '3' : '';
+            hopperWrap.classList.toggle('hidden', !isKbb);
+        }
+
+        if (currentWrap) {
+            currentWrap.style.order = isKbb ? '4' : '';
+        }
+
+        if (productionWrap) {
+            productionWrap.style.order = isKbb ? '5' : '';
+        }
+
+        if (yesterdayWrap) {
+            yesterdayWrap.style.order = isKbb ? '1' : '';
+        }
+
+        if (stokSemalamLabel) {
+            stokSemalamLabel.textContent = isKbb ? 'Stok PK KCP Semalam (MT)' : 'Stok PK Semalam (MT)';
+        }
+
+        if (jualanPkLabel) {
+            jualanPkLabel.textContent = isKbb ? 'Jualan PK kepada Pembeli Luar (MT) *' : 'Jualan PK (MT) *';
+        }
+
+        if (stokSemasaLabel) {
+            stokSemasaLabel.textContent = isKbb ? 'Stok PK KCP Semasa (MT) *' : 'Stok PK Semasa (MT) *';
+        }
+
+        if (hopperLabel) {
+            hopperLabel.textContent = 'PK KCP to Hopper (MT)';
+        }
+
+        if (produksiPkLabel) {
+            produksiPkLabel.textContent = isKbb ? 'Pengeluaran PK (AUTO)' : 'Pengeluaran PK (MT)';
+        }
+
+        if (produksiPkInput) {
+            produksiPkInput.readOnly = isKbb;
+            produksiPkInput.classList.toggle('bg-gray-100', isKbb);
+        }
+
+        if (transferWrapper) {
+            transferWrapper.classList.toggle('hidden', !isKbb);
+            transferWrapper.style.order = isKbb ? '6' : '';
+        }
+
+        syncPemindahanPkKcp();
+    }
+
     function setQualityFieldState(isNonOperasi) {
         ['oer', 'ker', 'ffa', 'moisture', 'dirt'].forEach(function (name) {
             const el = document.querySelector('[name="' + name + '"]');
@@ -194,6 +288,7 @@
 
     function recalculateDerivedFields() {
         const isNonOperasi = (document.querySelector('[name="operation_status"]')?.value || '') === 'Tidak Operasi (Terima Buah Sahaja)';
+        const isKbb = isBukitBujangSelected();
         setQualityFieldState(isNonOperasi);
 
         if (isNonOperasi) {
@@ -203,21 +298,23 @@
 
             const bakiBtsNonOperasi = parseValue('baki_bts_semalam') + parseValue('bts_diterima');
             const produksiCpoNonOperasi = parseValue('stok_cpo') - parseValue('stok_cpo_yesterday') + parseValue('pengeluaran_cpo');
-            const produksiPkNonOperasi = parseValue('stok_pk') - parseValue('stok_pk_yesterday') + parseValue('pengeluaran_pk');
+            const produksiPkNonOperasi = parseValue('stok_pk') - parseValue('stok_pk_yesterday') + parseValue('pengeluaran_pk') + (isKbb ? parseValue('pk_kcp_to_hopper') : 0);
             writeValue('baki_bts_selepas_diproses', bakiBtsNonOperasi);
             writeValue('produksi_cpo', produksiCpoNonOperasi);
             writeValue('produksi_pk', produksiPkNonOperasi);
+            syncPemindahanPkKcp();
 
             return;
         }
 
         const produksiCpo = parseValue('stok_cpo') - parseValue('stok_cpo_yesterday') + parseValue('pengeluaran_cpo');
-        const produksiPk = parseValue('stok_pk') - parseValue('stok_pk_yesterday') + parseValue('pengeluaran_pk');
+        const produksiPk = parseValue('stok_pk') - parseValue('stok_pk_yesterday') + parseValue('pengeluaran_pk') + (isKbb ? parseValue('pk_kcp_to_hopper') : 0);
         const bakiBts = parseValue('baki_bts_semalam') + parseValue('bts_diterima') - parseValue('bts_diproses');
 
         writeValue('produksi_cpo', produksiCpo);
         writeValue('produksi_pk', produksiPk);
         writeValue('baki_bts_selepas_diproses', bakiBts);
+        syncPemindahanPkKcp();
     }
 
     function refreshOpeningBalance(millId) {
@@ -239,7 +336,7 @@
         refreshOpeningBalance(millId);
     }
 
-    ['operation_status', 'stok_cpo', 'stok_cpo_yesterday', 'pengeluaran_cpo', 'stok_pk', 'stok_pk_yesterday', 'pengeluaran_pk', 'baki_bts_semalam', 'bts_diterima', 'bts_diproses']
+    ['operation_status', 'stok_cpo', 'stok_cpo_yesterday', 'pengeluaran_cpo', 'stok_pk', 'stok_pk_yesterday', 'pengeluaran_pk', 'pk_kcp_to_hopper', 'baki_bts_semalam', 'bts_diterima', 'bts_diproses']
         .forEach(function (name) {
             const el = document.querySelector('[name="' + name + '"]');
             if (el) {
@@ -247,6 +344,17 @@
             }
         });
 
+    const millSelectEl = document.querySelector('[name="mill_id"]');
+    if (millSelectEl) {
+        millSelectEl.addEventListener('change', updatePkLabelsAndTransferVisibility);
+    }
+
+    const produksiPkInput = document.querySelector('[name="produksi_pk"]');
+    if (produksiPkInput) {
+        produksiPkInput.addEventListener('input', syncPemindahanPkKcp);
+    }
+
     recalculateDerivedFields();
+    updatePkLabelsAndTransferVisibility();
 </script>
 @endpush

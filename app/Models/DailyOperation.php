@@ -12,7 +12,7 @@ class DailyOperation extends Model
         'tarikh', 'mill_id', 'shift', 'officer_id',
         'operation_status',
         'bts_diterima', 'bts_diproses', 'baki_bts_semalam', 'baki_bts_selepas_diproses', 'jam_operasi', 'downtime_jam', 'sebab_downtime',
-        'pengeluaran_cpo', 'pengeluaran_pk', 'produksi_cpo', 'produksi_pk', 'stok_cpo', 'stok_pk', 'stok_cpo_yesterday', 'stok_pk_yesterday',
+        'pengeluaran_cpo', 'pengeluaran_pk', 'pk_kcp_to_hopper', 'produksi_cpo', 'produksi_pk', 'stok_cpo', 'stok_pk', 'stok_cpo_yesterday', 'stok_pk_yesterday',
         'oer', 'ker', 'ffa', 'moisture', 'dirt', 'throughput', 'utilisation_rate',
         'isu_operasi', 'tindakan_pembetulan', 'catatan_tambahan', 'status',
     ];
