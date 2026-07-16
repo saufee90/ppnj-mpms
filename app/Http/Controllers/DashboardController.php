@@ -7,6 +7,7 @@ use App\Models\KpiTarget;
 use App\Models\Mill;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use App\Services\DashboardPdfService;
 
 class DashboardController extends Controller
 {
@@ -278,82 +279,12 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function downloadPdf(Request $request)
-    {
-        $displayDate = Carbon::yesterday();
-        $statusMills = Mill::query()
-            ->whereIn('code', ['KHG', 'BBJ'])
-            ->orderByRaw("CASE code WHEN 'KHG' THEN 1 WHEN 'BBJ' THEN 2 ELSE 99 END")
-            ->get();
+public function downloadPdf(Request $request, DashboardPdfService $dashboardPdfService)
+{
+    $report = $dashboardPdfService->generate();
 
-        $millSummaries = $statusMills->map(function ($mill) use ($displayDate) {
-            $dailyQuery = DailyOperation::query()
-                ->where('mill_id', $mill->id)
-                ->whereDate('tarikh', $displayDate->toDateString());
-            $dailyRows = $dailyQuery->get();
-            $latestDailyRecord = $dailyRows->sortByDesc('id')->first();
-
-            $mtdQuery = DailyOperation::query()
-                ->where('mill_id', $mill->id)
-                ->forMonth(now()->year, now()->month);
-            $mtdRows = $mtdQuery->get();
-            $mtdOperatedDays = (clone $mtdQuery)->operated()->count();
-
-            $dailyBtsDiproses = (float) $dailyRows->sum('bts_diproses');
-            $mtdBtsDiproses = (float) $mtdRows->sum('bts_diproses');
-            $mtdProduksiCpo = (float) $mtdRows->sum('produksi_cpo');
-            $mtdProduksiPk = (float) $mtdRows->sum('produksi_pk');
-
-            return [
-                'mill_id' => $mill->id,
-                'code' => $mill->code,
-                'name' => $mill->name,
-                'status' => $this->resolvePdfOperationStatus($latestDailyRecord),
-                'data_date_text' => $latestDailyRecord?->tarikh
-                    ? $latestDailyRecord->tarikh->translatedFormat('d F Y')
-                    : 'Tiada Data',
-                'bts_diterima' => (float) $dailyRows->sum('bts_diterima'),
-                'bts_diproses' => $dailyBtsDiproses,
-                'pengeluaran_cpo' => (float) $dailyRows->sum('produksi_cpo'),
-                'jualan_cpo' => (float) $dailyRows->sum('pengeluaran_cpo'),
-                'stok_cpo' => (float) ($latestDailyRecord?->stok_cpo ?? 0),
-                'pengeluaran_pk' => (float) $dailyRows->sum('produksi_pk'),
-                'jualan_pk' => (float) $dailyRows->sum('pengeluaran_pk'),
-                'stok_pk' => (float) ($latestDailyRecord?->stok_pk ?? 0),
-                'oer' => $this->computeRateFromRows($dailyRows, 'produksi_cpo'),
-                'ker' => $this->computeRateFromRows($dailyRows, 'produksi_pk'),
-                'throughput' => $this->computeThroughputFromRows($dailyRows),
-                'downtime' => (float) $dailyRows->sum('downtime_jam'),
-                'baki_bts_selepas_diproses' => (float) ($latestDailyRecord?->baki_bts_selepas_diproses ?? 0),
-                'mtd' => [
-                    'bts_diterima' => (float) $mtdRows->sum('bts_diterima'),
-                    'bts_diproses' => $mtdBtsDiproses,
-                    'pengeluaran_cpo' => (float) $mtdRows->sum('produksi_cpo'),
-                    'pengeluaran_pk' => (float) $mtdRows->sum('produksi_pk'),
-                    'oer' => $this->computeRate($mtdProduksiCpo, $mtdBtsDiproses),
-                    'ker' => $this->computeRate($mtdProduksiPk, $mtdBtsDiproses),
-                    'downtime' => (float) $mtdRows->sum('downtime_jam'),
-                    'hari_operasi' => $mtdOperatedDays,
-                ],
-            ];
-        })->values();
-
-        $logoDataUri = $this->makeImageDataUri(public_path('images/logo-ppnj.jpg'));
-        $displayDateText = $displayDate->translatedFormat('d F Y');
-        $generatedAtText = now()->translatedFormat('d F Y, H:i');
-        $attentionMessages = $this->buildPdfAttentionMessages($millSummaries);
-        $filename = 'Dashboard_MPS_' . $displayDate->toDateString() . '.pdf';
-
-        $pdf = app('dompdf.wrapper')->loadView('dashboard.pdf', [
-            'logoDataUri' => $logoDataUri,
-            'displayDateText' => $displayDateText,
-            'generatedAtText' => $generatedAtText,
-            'millSummaries' => $millSummaries,
-            'attentionMessages' => $attentionMessages,
-        ])->setPaper('a4', 'landscape');
-
-        return $pdf->download($filename);
-    }
+    return $report['pdf']->download($report['filename']);
+}
 
     private function buildPdfAttentionMessages($millSummaries): array
     {

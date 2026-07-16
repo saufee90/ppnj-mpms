@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\DailyOperation;
 use App\Models\Mill;
+use App\Services\DailyReportNotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -45,7 +46,10 @@ class DailyOperationController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+   public function store(
+    Request $request,
+    DailyReportNotificationService $notificationService
+)
     {
         $user = $request->user();
 
@@ -93,6 +97,7 @@ class DailyOperationController extends Controller
         $operation = DailyOperation::create($data);
 
         AuditLog::record('created', $operation, null, $operation->toArray());
+        $notificationService->sendIfReady($operation->tarikh);
 
         return redirect()->route('rekod-harian.index')->with('success', 'Data harian berjaya disimpan.');
     }
