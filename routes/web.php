@@ -90,8 +90,7 @@ Route::middleware('auth')->group(function () {
     */
     Route::middleware('role:admin')->prefix('tetapan-kpi')->name('kpi.')->group(function () {
         Route::get('/', [KpiTargetController::class, 'index'])->name('index');
-        Route::post('/', [KpiTargetController::class, 'store'])->name('store');
-        Route::put('/{kpi_target}', [KpiTargetController::class, 'update'])->name('update');
+        Route::post('/simpan', [KpiTargetController::class, 'store'])->name('store');
     });
 
     /*
