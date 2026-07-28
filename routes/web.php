@@ -7,6 +7,7 @@ use App\Http\Controllers\PerformanceAnalysisController;
 use App\Http\Controllers\MillComparisonController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\KpiTargetController;
+use App\Http\Controllers\SystemMaintenanceController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\AuditLogController;
 use Illuminate\Support\Facades\Route;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Route;
 | Guest Routes
 |--------------------------------------------------------------------------
 */
-Route::middleware('guest')->group(function () {
+Route::middleware(['system.maintenance', 'guest'])->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->name('login.attempt');
 });
@@ -25,12 +26,14 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+Route::get('/maintenance', [SystemMaintenanceController::class, 'show'])->name('maintenance.show');
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated Routes (semua role)
 |--------------------------------------------------------------------------
 */
-Route::middleware('auth')->group(function () {
+Route::middleware(['system.maintenance', 'auth'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
@@ -113,4 +116,11 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:admin')->get('/log-aktiviti', [AuditLogController::class, 'index'])->name('audit.index');
+
+    Route::middleware('role:admin')->prefix('system-maintenance')->name('maintenance.')->group(function () {
+        Route::get('/', [SystemMaintenanceController::class, 'index'])->name('index');
+        Route::put('/', [SystemMaintenanceController::class, 'update'])->name('update');
+        Route::post('/disable', [SystemMaintenanceController::class, 'disable'])->name('disable');
+        Route::get('/preview', [SystemMaintenanceController::class, 'preview'])->name('preview');
+    });
 });

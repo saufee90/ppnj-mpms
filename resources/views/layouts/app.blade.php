@@ -110,6 +110,7 @@
                     <p class="px-5 text-xs uppercase text-white/40 mb-1">Pentadbiran</p>
                     <a href="{{ route('kpi.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('kpi.*') ? 'active' : '' }}">🎯 Tetapan KPI</a>
                     <a href="{{ route('users.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('users.*') ? 'active' : '' }}">👥 Pengurusan Pengguna</a>
+                    <a href="{{ route('maintenance.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('maintenance.*') ? 'active' : '' }}">🛠️ System Maintenance Manager</a>
                     <a href="{{ route('audit.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('audit.*') ? 'active' : '' }}">🕒 Log Aktiviti</a>
                 </div>
                 @endif
@@ -118,12 +119,18 @@
             <div class="sidebar-footer">
                 <p class="copyright">&copy; 2026 Cawangan Teknologi Maklumat PPNJ</p>
                 <p class="rights">Hak Cipta Terpelihara.</p>
-                <p class="version">MPS v1.0</p>
+                <p class="version">MPS v{{ data_get($systemSettings ?? [], 'system_version', $systemVersion ?? '1.0.5') }}</p>
             </div>
         </aside>
 
         <!-- Main content -->
         <div class="flex-1 md:ml-64">
+            @if(auth()->check() && auth()->user()->isAdmin() && ($systemMaintenanceEnabled ?? false))
+                <div class="bg-red-600 text-white text-sm px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <div>Maintenance Mode sedang AKTIF. Semua pengguna selain Admin tidak boleh mengakses sistem.</div>
+                    <a href="{{ route('maintenance.index') }}" class="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/20 font-semibold">System Maintenance Manager</a>
+                </div>
+            @endif
             <!-- Topbar -->
             <header class="bg-white shadow-sm sticky top-0 z-10 flex items-center justify-between px-6 py-3">
                 <h2 class="text-lg font-semibold ppnj-green-text">@yield('title', 'Dashboard')</h2>

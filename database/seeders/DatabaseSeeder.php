@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             MillSeeder::class,
             KpiTargetSeeder::class,
             UserSeeder::class,
+            SystemSettingSeeder::class,
         ]);
     }
 }

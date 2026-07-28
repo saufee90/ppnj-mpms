@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\SystemSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +16,27 @@ class AuthController extends Controller
     {
         if (Auth::check()) {
             return redirect()->route('dashboard');
+        }
+
+        if (SystemSetting::maintenanceEnabled()) {
+            $settings = SystemSetting::mergedValues();
+
+            $response = response()->view('maintenance', [
+                'title' => $settings['maintenance_title'],
+                'message' => $settings['maintenance_message'],
+                'notes' => array_values(array_filter(preg_split('/\r\n|\r|\n/', (string) $settings['maintenance_notes']) ?: [])),
+                'maintenance_type' => $settings['maintenance_type'],
+                'maintenance_label' => SystemSetting::maintenanceLabel((string) $settings['maintenance_type']),
+                'maintenance_end_at' => $settings['maintenance_end_at'],
+                'system_version' => $settings['system_version'],
+                'preview' => false,
+            ], 503);
+
+            if ($retryAfter = SystemSetting::retryAfterSeconds($settings['maintenance_end_at'])) {
+                $response->headers->set('Retry-After', (string) $retryAfter);
+            }
+
+            return $response;
         }
 
         return view('auth.login');
