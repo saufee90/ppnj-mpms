@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -15,12 +17,14 @@ class DailyOperation extends Model
         'pengeluaran_cpo', 'pengeluaran_pk', 'pk_kcp_to_hopper', 'produksi_cpo', 'produksi_pk', 'stok_cpo', 'stok_pk', 'stok_cpo_yesterday', 'stok_pk_yesterday',
         'oer', 'ker', 'ffa', 'moisture', 'dirt', 'throughput', 'utilisation_rate',
         'isu_operasi', 'tindakan_pembetulan', 'catatan_tambahan', 'status',
+        'last_amendment_reason', 'last_amended_by', 'last_amended_at',
     ];
 
     protected function casts(): array
     {
         return [
             'tarikh' => 'date',
+            'last_amended_at' => 'datetime',
         ];
     }
 
@@ -105,6 +109,11 @@ class DailyOperation extends Model
         return $this->belongsTo(User::class, 'officer_id');
     }
 
+    public function lastAmendedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'last_amended_by');
+    }
+
     public function downtimeLogs(): HasMany
     {
         return $this->hasMany(DowntimeLog::class);
@@ -138,5 +147,29 @@ class DailyOperation extends Model
                         });
                 });
         });
+    }
+
+    public function amendmentEditableUntil(): Carbon
+    {
+        return Carbon::parse($this->tarikh->toDateString(), 'Asia/Kuala_Lumpur')->addDays(3);
+    }
+
+    public function isAmendmentWindowOpenFor(User $user, ?CarbonInterface $now = null): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if (! $user->isPegawaiKilang()) {
+            return false;
+        }
+
+        if ((int) $this->mill_id !== (int) $user->mill_id) {
+            return false;
+        }
+
+        $today = ($now ? Carbon::instance($now) : Carbon::now('Asia/Kuala_Lumpur'))->startOfDay();
+
+        return $today->lte($this->amendmentEditableUntil()->startOfDay());
     }
 }

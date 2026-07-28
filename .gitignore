@@ -6,3 +6,5 @@
 /storage/framework/sessions/*
 /storage/framework/views/*
 /bootstrap/cache/*
+.phpunit.result.cache
+mps-kpi-deploy.zip

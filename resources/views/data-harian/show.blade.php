@@ -4,12 +4,28 @@
 @section('content')
 <div class="bg-white rounded-xl shadow-sm p-6 max-w-4xl space-y-6">
 
+    @php
+        $canUpdate = auth()->user()->canEditData() && auth()->user()->can('update', $daily_operation);
+        $isPegawai = auth()->user()->isPegawaiKilang();
+        $editDeadline = $daily_operation->amendmentEditableUntil()->translatedFormat('d F Y');
+    @endphp
+
     <div class="flex justify-between items-start border-b pb-4">
         <div>
             <h3 class="text-lg font-bold ppnj-green-text">{{ $daily_operation->mill->name }}</h3>
             <p class="text-sm text-gray-500">{{ $daily_operation->tarikh->translatedFormat('d F Y') }} &middot; {{ $daily_operation->shift }}</p>
+            @if($isPegawai)
+                <p class="text-xs text-gray-500 mt-1">Boleh dipinda sehingga: {{ $editDeadline }}</p>
+            @endif
         </div>
-        <a href="{{ route('rekod-harian.index') }}" class="text-sm text-blue-600">&larr; Kembali</a>
+        <div class="flex items-center gap-3">
+            @if($canUpdate)
+                <a href="{{ route('data-harian.edit', $daily_operation) }}" class="text-sm px-3 py-1.5 rounded-lg ppnj-green text-white">Edit Rekod</a>
+            @elseif($isPegawai && $daily_operation->mill_id === auth()->user()->mill_id)
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">Tempoh pindaan tamat</span>
+            @endif
+            <a href="{{ route('rekod-harian.index') }}" class="text-sm text-blue-600">&larr; Kembali</a>
+        </div>
     </div>
 
     @php
@@ -73,6 +89,10 @@
 
     <div class="text-xs text-gray-400 border-t pt-3">
         Dikemaskini oleh {{ $daily_operation->officer->name ?? '-' }} pada {{ $daily_operation->updated_at->format('d/m/Y H:i') }}
+        @if($daily_operation->last_amendment_reason)
+            <p class="mt-2 text-gray-600"><strong>Sebab Pindaan Terakhir:</strong> {{ $daily_operation->last_amendment_reason }}</p>
+            <p class="text-gray-500">Dipinda pada {{ optional($daily_operation->last_amended_at)->format('d/m/Y H:i') }} oleh {{ optional($daily_operation->lastAmendedBy)->name ?? '-' }}</p>
+        @endif
     </div>
 </div>
 @endsection

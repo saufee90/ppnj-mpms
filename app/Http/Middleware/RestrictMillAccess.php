@@ -26,7 +26,7 @@ class RestrictMillAccess
         $dailyOperation = $request->route('daily_operation') ?? $request->route('dailyOperation');
 
         if ($dailyOperation instanceof DailyOperation && $dailyOperation->mill_id !== $user->mill_id) {
-            abort(403, 'Anda hanya boleh mengakses data kilang anda sendiri.');
+            abort(403, 'Anda tidak dibenarkan meminda rekod kilang ini.');
         }
 
         $requestMillId = $request->input('mill_id');

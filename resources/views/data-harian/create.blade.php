@@ -3,7 +3,7 @@
 
 @section('content')
 <div class="bg-white rounded-xl shadow-sm p-6 max-w-4xl">
-    <form method="POST" action="{{ route('data-harian.store') }}" class="space-y-6">
+    <form id="daily-operation-form" method="POST" action="{{ route('data-harian.store') }}" class="space-y-6" data-form-mode="create">
         @csrf
 
         <div>
@@ -164,9 +164,93 @@
 
         <div class="flex justify-end gap-3 pt-2 border-t">
             <a href="{{ route('rekod-harian.index') }}" class="px-4 py-2 rounded-lg border text-sm">Batal</a>
-            <button type="submit" class="px-5 py-2 rounded-lg ppnj-green text-white text-sm font-medium">Simpan Data</button>
+            <button type="button" id="open-confirmation-modal" class="px-5 py-2 rounded-lg ppnj-green text-white text-sm font-medium">Simpan Data</button>
         </div>
     </form>
+</div>
+
+<div id="data-confirmation-modal" class="fixed inset-0 z-50 hidden" aria-hidden="true">
+    <div class="absolute inset-0 bg-black/50" data-close-confirmation></div>
+    <div class="relative z-10 min-h-full flex items-end md:items-center justify-center p-0 md:p-4">
+        <div class="w-full md:max-w-6xl bg-white rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col border border-green-100">
+            <div class="px-5 md:px-6 py-4 border-b bg-green-50">
+                <h3 class="text-lg font-bold ppnj-green-text">Pengesahan Rekod Harian</h3>
+                <p class="text-xs text-gray-600 mt-1">Sila semak semula semua data sebelum dihantar.</p>
+            </div>
+
+            <div class="px-5 md:px-6 py-4 overflow-y-auto space-y-4 text-sm">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Kilang</p><p class="font-semibold" data-summary="mill_id">-</p></div>
+                    <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Tarikh Operasi</p><p class="font-semibold" data-summary="tarikh">-</p></div>
+                    <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Status Operasi</p><p class="font-semibold" data-summary="operation_status">-</p></div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Penerimaan dan Pemprosesan</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">BTS Diterima</p><p class="font-semibold" data-summary="bts_diterima">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">BTS Diproses</p><p class="font-semibold" data-summary="bts_diproses">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Baki BTS Semalam</p><p class="font-semibold" data-summary="baki_bts_semalam">-</p></div>
+                        <div class="bg-green-50 rounded-lg p-3 border border-green-200"><p class="text-xs text-gray-500">Baki BTS Selepas Diproses</p><p class="font-semibold ppnj-green-text" data-summary="baki_bts_selepas_diproses">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Jam Operasi</p><p class="font-semibold" data-summary="jam_operasi">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Downtime</p><p class="font-semibold" data-summary="downtime_jam">-</p></div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Pengeluaran dan Stok</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Jualan CPO</p><p class="font-semibold" data-summary="pengeluaran_cpo">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Jualan PK kepada Pembeli Luar</p><p class="font-semibold" data-summary="pengeluaran_pk">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">PK KCP ke Hopper</p><p class="font-semibold" data-summary="pk_kcp_to_hopper">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Pengeluaran CPO</p><p class="font-semibold" data-summary="produksi_cpo">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Pengeluaran PK</p><p class="font-semibold" data-summary="produksi_pk">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Stok CPO Semalam</p><p class="font-semibold" data-summary="stok_cpo_yesterday">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Stok PK KCP Semalam</p><p class="font-semibold" data-summary="stok_pk_yesterday">-</p></div>
+                        <div class="bg-green-50 rounded-lg p-3 border border-green-200"><p class="text-xs text-gray-500">Stok CPO</p><p class="font-semibold ppnj-green-text" data-summary="stok_cpo">-</p></div>
+                        <div class="bg-green-50 rounded-lg p-3 border border-green-200"><p class="text-xs text-gray-500">Stok PK KCP</p><p class="font-semibold ppnj-green-text" data-summary="stok_pk">-</p></div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Kualiti dan KPI</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="bg-green-50 rounded-lg p-3 border border-green-200"><p class="text-xs text-gray-500">OER</p><p class="font-semibold ppnj-green-text" data-summary="oer">-</p></div>
+                        <div class="bg-green-50 rounded-lg p-3 border border-green-200"><p class="text-xs text-gray-500">KER</p><p class="font-semibold ppnj-green-text" data-summary="ker">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">FFA</p><p class="font-semibold" data-summary="ffa">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Moisture</p><p class="font-semibold" data-summary="moisture">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Dirt</p><p class="font-semibold" data-summary="dirt">-</p></div>
+                        <div class="bg-green-50 rounded-lg p-3 border border-green-200"><p class="text-xs text-gray-500">Throughput</p><p class="font-semibold ppnj-green-text" data-summary="throughput">-</p></div>
+                        <div class="bg-green-50 rounded-lg p-3 border border-green-200"><p class="text-xs text-gray-500">Utilisation</p><p class="font-semibold ppnj-green-text" data-summary="utilisation_rate">-</p></div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Catatan</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Sebab Downtime</p><p class="font-semibold" data-summary="sebab_downtime">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Isu Operasi</p><p class="font-semibold" data-summary="isu_operasi">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Tindakan Pembetulan</p><p class="font-semibold" data-summary="tindakan_pembetulan">-</p></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-500">Catatan Tambahan</p><p class="font-semibold" data-summary="catatan_tambahan">-</p></div>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border border-amber-200 bg-amber-50 text-amber-900 p-3 text-sm">
+                    Sila pastikan semua maklumat telah disemak berdasarkan Daily Figure kilang. Kesilapan data boleh menjejaskan baki stok, KPI, laporan dan rekod hari berikutnya.
+                </div>
+
+                <label class="flex items-start gap-2 text-sm text-gray-700">
+                    <input id="confirmation-checkbox" type="checkbox" class="mt-1 h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-green-600">
+                    <span>Saya mengesahkan bahawa semua data telah disemak dan adalah tepat.</span>
+                </label>
+            </div>
+
+            <div class="px-5 md:px-6 py-4 border-t bg-white flex flex-col-reverse md:flex-row md:justify-end gap-2">
+                <button type="button" id="close-confirmation-modal" class="px-4 py-2 rounded-lg border text-sm">Kembali Semak Data</button>
+                <button type="button" id="confirm-and-submit" disabled class="px-4 py-2 rounded-lg ppnj-green text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed">Sahkan dan Simpan</button>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -310,10 +394,20 @@
         const produksiCpo = parseValue('stok_cpo') - parseValue('stok_cpo_yesterday') + parseValue('pengeluaran_cpo');
         const produksiPk = parseValue('stok_pk') - parseValue('stok_pk_yesterday') + parseValue('pengeluaran_pk') + (isKbb ? parseValue('pk_kcp_to_hopper') : 0);
         const bakiBts = parseValue('baki_bts_semalam') + parseValue('bts_diterima') - parseValue('bts_diproses');
+        const jamOperasi = parseValue('jam_operasi');
+        const throughput = jamOperasi > 0 ? (parseValue('bts_diproses') / jamOperasi) : 0;
+        const capacity = isKbb ? 30 : 60;
+        const utilisation = throughput > 0 ? (throughput / capacity) * 100 : 0;
+        const oer = parseValue('bts_diproses') > 0 ? (produksiCpo / parseValue('bts_diproses')) * 100 : 0;
+        const ker = parseValue('bts_diproses') > 0 ? (produksiPk / parseValue('bts_diproses')) * 100 : 0;
 
         writeValue('produksi_cpo', produksiCpo);
         writeValue('produksi_pk', produksiPk);
         writeValue('baki_bts_selepas_diproses', bakiBts);
+        writeValue('throughput', throughput);
+        writeValue('utilisation_rate', utilisation);
+        writeValue('oer', oer);
+        writeValue('ker', ker);
         syncPemindahanPkKcp();
     }
 
@@ -356,5 +450,142 @@
 
     recalculateDerivedFields();
     updatePkLabelsAndTransferVisibility();
+
+    const formEl = document.getElementById('daily-operation-form');
+    const modalEl = document.getElementById('data-confirmation-modal');
+    const openBtn = document.getElementById('open-confirmation-modal');
+    const closeBtn = document.getElementById('close-confirmation-modal');
+    const closeBackdrop = modalEl?.querySelector('[data-close-confirmation]');
+    const checkbox = document.getElementById('confirmation-checkbox');
+    const confirmBtn = document.getElementById('confirm-and-submit');
+    let isConfirmedSubmission = false;
+
+    function formatNumber(value, unit) {
+        const numeric = Number.parseFloat(value);
+        if (!Number.isFinite(numeric)) {
+            return '-';
+        }
+        return numeric.toFixed(2) + (unit ? (' ' + unit) : '');
+    }
+
+    function getFieldValue(name) {
+        const field = document.querySelector('[name="' + name + '"]');
+        if (!field) {
+            return '';
+        }
+
+        if (field.tagName === 'SELECT') {
+            const selected = field.options[field.selectedIndex];
+            return selected ? selected.text.trim() : '';
+        }
+
+        return (field.value || '').trim();
+    }
+
+    function setSummaryValue(name, value) {
+        const target = modalEl?.querySelector('[data-summary="' + name + '"]');
+        if (target) {
+            target.textContent = value && value.length ? value : '-';
+        }
+    }
+
+    function populateSummary() {
+        recalculateDerivedFields();
+
+        const dateValue = getFieldValue('tarikh');
+        const formattedDate = dateValue ? new Date(dateValue + 'T00:00:00').toLocaleDateString('ms-MY') : '-';
+
+        setSummaryValue('mill_id', getFieldValue('mill_id'));
+        setSummaryValue('tarikh', formattedDate);
+        setSummaryValue('operation_status', getFieldValue('operation_status'));
+
+        setSummaryValue('bts_diterima', formatNumber(getFieldValue('bts_diterima'), 'MT'));
+        setSummaryValue('bts_diproses', formatNumber(getFieldValue('bts_diproses'), 'MT'));
+        setSummaryValue('baki_bts_semalam', formatNumber(getFieldValue('baki_bts_semalam'), 'MT'));
+        setSummaryValue('baki_bts_selepas_diproses', formatNumber(getFieldValue('baki_bts_selepas_diproses'), 'MT'));
+        setSummaryValue('jam_operasi', formatNumber(getFieldValue('jam_operasi'), 'Jam'));
+        setSummaryValue('downtime_jam', formatNumber(getFieldValue('downtime_jam'), 'Jam'));
+
+        setSummaryValue('pengeluaran_cpo', formatNumber(getFieldValue('pengeluaran_cpo'), 'MT'));
+        setSummaryValue('pengeluaran_pk', formatNumber(getFieldValue('pengeluaran_pk'), 'MT'));
+        setSummaryValue('pk_kcp_to_hopper', formatNumber(getFieldValue('pk_kcp_to_hopper'), 'MT'));
+        setSummaryValue('produksi_cpo', formatNumber(getFieldValue('produksi_cpo'), 'MT'));
+        setSummaryValue('produksi_pk', formatNumber(getFieldValue('produksi_pk'), 'MT'));
+        setSummaryValue('stok_cpo_yesterday', formatNumber(getFieldValue('stok_cpo_yesterday'), 'MT'));
+        setSummaryValue('stok_pk_yesterday', formatNumber(getFieldValue('stok_pk_yesterday'), 'MT'));
+        setSummaryValue('stok_cpo', formatNumber(getFieldValue('stok_cpo'), 'MT'));
+        setSummaryValue('stok_pk', formatNumber(getFieldValue('stok_pk'), 'MT'));
+
+        const btsDiproses = parseValue('bts_diproses');
+        const jamOperasi = parseValue('jam_operasi');
+        const produksiCpo = parseValue('produksi_cpo');
+        const produksiPk = parseValue('produksi_pk');
+        const isKbb = isBukitBujangSelected();
+        const throughputCalculated = jamOperasi > 0 ? (btsDiproses / jamOperasi) : 0;
+        const utilisationCalculated = throughputCalculated > 0 ? (throughputCalculated / (isKbb ? 30 : 60)) * 100 : 0;
+        const oerCalculated = btsDiproses > 0 ? (produksiCpo / btsDiproses) * 100 : 0;
+        const kerCalculated = btsDiproses > 0 ? (produksiPk / btsDiproses) * 100 : 0;
+
+        setSummaryValue('oer', formatNumber(oerCalculated, '%'));
+        setSummaryValue('ker', formatNumber(kerCalculated, '%'));
+        setSummaryValue('ffa', formatNumber(getFieldValue('ffa'), '%'));
+        setSummaryValue('moisture', formatNumber(getFieldValue('moisture'), '%'));
+        setSummaryValue('dirt', formatNumber(getFieldValue('dirt'), '%'));
+        setSummaryValue('throughput', formatNumber(throughputCalculated, 'MT/Jam'));
+        setSummaryValue('utilisation_rate', formatNumber(utilisationCalculated, '%'));
+
+        setSummaryValue('sebab_downtime', getFieldValue('sebab_downtime'));
+        setSummaryValue('isu_operasi', getFieldValue('isu_operasi'));
+        setSummaryValue('tindakan_pembetulan', getFieldValue('tindakan_pembetulan'));
+        setSummaryValue('catatan_tambahan', getFieldValue('catatan_tambahan'));
+    }
+
+    function openModal() {
+        if (!formEl?.reportValidity()) {
+            return;
+        }
+
+        populateSummary();
+        checkbox.checked = false;
+        confirmBtn.disabled = true;
+        modalEl.classList.remove('hidden');
+        modalEl.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('overflow-hidden');
+    }
+
+    function closeModal() {
+        modalEl.classList.add('hidden');
+        modalEl.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('overflow-hidden');
+    }
+
+    openBtn?.addEventListener('click', openModal);
+    closeBtn?.addEventListener('click', closeModal);
+    closeBackdrop?.addEventListener('click', closeModal);
+
+    checkbox?.addEventListener('change', function () {
+        confirmBtn.disabled = !checkbox.checked;
+    });
+
+    formEl?.addEventListener('submit', function (event) {
+        if (isConfirmedSubmission) {
+            return;
+        }
+
+        event.preventDefault();
+        openModal();
+    });
+
+    confirmBtn?.addEventListener('click', function () {
+        if (confirmBtn.disabled || isConfirmedSubmission) {
+            return;
+        }
+
+        isConfirmedSubmission = true;
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Sedang menyimpan dan mengira semula data...';
+        closeBtn.disabled = true;
+        formEl.submit();
+    });
 </script>
 @endpush
