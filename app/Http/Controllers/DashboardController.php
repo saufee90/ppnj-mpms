@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DailyOperation;
 use App\Models\KpiTarget;
 use App\Models\Mill;
+use App\Services\MpobPriceService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use App\Services\DashboardPdfService;
@@ -13,7 +14,7 @@ class DashboardController extends Controller
 {
     private const YTD_BASELINE_DATE = '2026-07-01';
 
-    public function index(Request $request)
+    public function index(Request $request, MpobPriceService $mpobPriceService)
     {
         $user = $request->user();
         $mills = $user->isMillScopedRole()
@@ -69,6 +70,25 @@ class DashboardController extends Controller
             'baki_bts_selepas_diproses' => (float) ($latestOperationalRecord?->baki_bts_selepas_diproses ?? 0),
             'stok_cpo' => (float) ($latestOperationalRecord?->stok_cpo ?? 0),
         ];
+
+        $mpobPrices = [
+            'products' => [
+                'cpo' => ['name' => 'Crude Palm Oil (CPO)', 'price' => null, 'price_date' => null],
+                'pk' => ['name' => 'Palm Kernel (PK)', 'price' => null, 'price_date' => null],
+                'cpko' => ['name' => 'Crude Palm Kernel Oil (CPKO)', 'price' => null, 'price_date' => null],
+            ],
+            'mpob_last_update' => null,
+            'source_url' => MpobPriceService::SOURCE_URL,
+            'refreshed_at' => null,
+            'checked_at' => null,
+            'source_available' => false,
+        ];
+
+        try {
+            $mpobPrices = $mpobPriceService->getForDashboard();
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
 
         $statusMills = Mill::query()
             ->whereIn('code', ['KHG', 'BBJ'])
@@ -256,6 +276,7 @@ class DashboardController extends Controller
             'latestOperationDateText' => $latestOperationDateText,
             'lastUpdatedText' => $lastUpdatedText,
             'operationalStatus' => $operationalStatus,
+            'mpobPrices' => $mpobPrices,
             'operationalStatusByMill' => $operationalStatusByMill,
             'summary' => $summary,
             'millsBelumHantar' => $millsBelumHantar,

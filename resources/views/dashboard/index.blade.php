@@ -54,6 +54,68 @@
     </div>
 </div>
 
+<!-- Harga Harian MPOB -->
+@php
+    $mpobProducts = $mpobPrices['products'] ?? [];
+    $mpobSourceAvailable = (bool) ($mpobPrices['source_available'] ?? false);
+    $mpobHasAnyPrice = collect($mpobProducts)->contains(fn ($product) => filled($product['price'] ?? null));
+@endphp
+<div class="mb-6 rounded-xl shadow-md p-5 border border-gray-200 bg-white">
+    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-4">
+        <div>
+            <h2 class="text-lg md:text-xl font-bold tracking-wide" style="color: #0B5D32;">HARGA HARIAN MPOB</h2>
+            <p class="text-sm text-gray-500 mt-1">Harga semasa minyak sawit mentah daripada MPOB.</p>
+            @if(!empty($mpobPrices['mpob_last_update']))
+                <p class="text-xs text-gray-400 mt-1">MPOB last update: {{ $mpobPrices['mpob_last_update'] }}</p>
+            @endif
+        </div>
+        <div class="text-sm text-gray-500 md:text-right space-y-1">
+            <div>Semakan sistem: {{ $mpobPrices['checked_at'] ? \Carbon\Carbon::parse($mpobPrices['checked_at'])->translatedFormat('d F Y, H:i') : '-' }}</div>
+            <div>Kemas kini terakhir: {{ $mpobPrices['refreshed_at'] ? \Carbon\Carbon::parse($mpobPrices['refreshed_at'])->translatedFormat('d F Y, H:i') : '-' }}</div>
+        </div>
+    </div>
+
+    @if(! $mpobSourceAvailable && $mpobHasAnyPrice)
+        <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Sumber MPOB tidak dapat dicapai. Memaparkan data terakhir yang disimpan.
+        </div>
+    @endif
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        @foreach(['cpo' => 'CPO', 'pk' => 'PK', 'cpko' => 'CPKO'] as $code => $label)
+            @php
+                $product = $mpobProducts[$code] ?? [];
+                $price = $product['price'] ?? null;
+                $priceDate = $product['price_date'] ?? null;
+            @endphp
+            <div class="rounded-lg border border-gray-200 p-4 bg-gradient-to-br from-white to-gray-50">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-500">{{ $label }}</p>
+                        <p class="text-xs text-gray-400 mt-1">{{ $priceDate ? \Carbon\Carbon::parse($priceDate)->translatedFormat('d F Y') : 'Tarikh belum tersedia' }}</p>
+                    </div>
+                    @if(! empty($mpobPrices['source_url']))
+                        <a href="{{ $mpobPrices['source_url'] }}" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold" style="color: #0B5D32;">Rujukan MPOB</a>
+                    @endif
+                </div>
+
+                <div class="mt-4">
+                    @if($price !== null)
+                        <div class="text-2xl md:text-3xl font-extrabold" style="color: #0B5D32;">RM {{ number_format((float) $price, 2) }} <span class="text-sm font-bold text-gray-500">/ MT</span></div>
+                    @else
+                        <div class="text-sm font-semibold text-gray-500">Data harga belum tersedia</div>
+                    @endif
+                </div>
+
+                <div class="mt-3 text-xs text-gray-500 space-y-1">
+                    <div>Tarikh harga: {{ $priceDate ? \Carbon\Carbon::parse($priceDate)->translatedFormat('d F Y') : '-' }}</div>
+                    <div>Semakan sistem: {{ $mpobPrices['checked_at'] ? \Carbon\Carbon::parse($mpobPrices['checked_at'])->translatedFormat('d F Y, H:i') : '-' }}</div>
+                </div>
+            </div>
+        @endforeach
+    </div>
+</div>
+
 <!-- Info kemas kini data & hari operasi (ikut pilihan kilang) -->
 @if($isAllMillsSelected)
     <div class="mb-4 text-sm text-gray-600">Data Terkini: Data Operasi sehingga {{ $latestOperationDateText }}</div>
