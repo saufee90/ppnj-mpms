@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DailyOperation;
 use App\Models\KpiTarget;
 use App\Models\Mill;
+use App\Models\MpobPriceHistory;
 use App\Services\MpobPriceService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -86,6 +87,18 @@ class DashboardController extends Controller
 
         try {
             $mpobPrices = $mpobPriceService->getForDashboard();
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+
+        $mpobTrendData = [
+            'cpo' => ['labels' => [], 'values' => [], 'delta' => ['symbol' => '—', 'amount' => 0.0]],
+            'pk' => ['labels' => [], 'values' => [], 'delta' => ['symbol' => '—', 'amount' => 0.0]],
+            'cpko' => ['labels' => [], 'values' => [], 'delta' => ['symbol' => '—', 'amount' => 0.0]],
+        ];
+
+        try {
+            $mpobTrendData = $this->buildMpobTrendData();
         } catch (\Throwable $exception) {
             report($exception);
         }
@@ -277,6 +290,7 @@ class DashboardController extends Controller
             'lastUpdatedText' => $lastUpdatedText,
             'operationalStatus' => $operationalStatus,
             'mpobPrices' => $mpobPrices,
+            'mpobTrendData' => $mpobTrendData,
             'operationalStatusByMill' => $operationalStatusByMill,
             'summary' => $summary,
             'millsBelumHantar' => $millsBelumHantar,
@@ -390,5 +404,56 @@ public function downloadPdf(Request $request, DashboardPdfService $dashboardPdfS
         $btsDiproses = (float) $rows->sum('bts_diproses');
 
         return $this->computeRate($production, $btsDiproses);
+    }
+
+    private function buildMpobTrendData(): array
+    {
+        $result = [];
+
+        foreach (['cpo', 'pk', 'cpko'] as $category) {
+            $rows = MpobPriceHistory::query()
+                ->select(['trade_date', 'price'])
+                ->where('category', $category)
+                ->where('price', '>', 0)
+                ->whereNotNull('trade_date')
+                ->orderByDesc('trade_date')
+                ->limit(30)
+                ->get()
+                ->sortBy('trade_date')
+                ->values();
+
+            $labels = $rows
+                ->map(fn ($row) => Carbon::parse($row->trade_date)->toDateString())
+                ->all();
+
+            $values = $rows
+                ->map(fn ($row) => round((float) $row->price, 2))
+                ->all();
+
+            $deltaSymbol = '—';
+            $deltaAmount = 0.0;
+
+            if (count($values) >= 2) {
+                $previous = (float) $values[count($values) - 2];
+                $latest = (float) $values[count($values) - 1];
+                $deltaAmount = round($latest - $previous, 2);
+                if ($deltaAmount > 0) {
+                    $deltaSymbol = '▲';
+                } elseif ($deltaAmount < 0) {
+                    $deltaSymbol = '▼';
+                }
+            }
+
+            $result[$category] = [
+                'labels' => $labels,
+                'values' => $values,
+                'delta' => [
+                    'symbol' => $deltaSymbol,
+                    'amount' => $deltaAmount,
+                ],
+            ];
+        }
+
+        return $result;
     }
 }

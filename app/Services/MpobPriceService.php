@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\MpobPriceHistory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -66,6 +67,15 @@ class MpobPriceService
             }
 
             $parsed['refreshed_at'] = now()->toIso8601String();
+
+            try {
+                $this->persistHistory($parsed);
+            } catch (\Throwable $historyException) {
+                Log::warning('MPOB history persistence failed.', [
+                    'message' => $historyException->getMessage(),
+                ]);
+            }
+
             Cache::store('file')->forever(self::CACHE_KEY, $parsed);
             Cache::store('file')->forever(self::STATUS_KEY, [
                 'success' => true,
@@ -156,6 +166,43 @@ class MpobPriceService
         $numeric = str_replace(',', '', $value);
 
         return is_numeric($numeric) ? round((float) $numeric, 2) : null;
+    }
+
+    private function persistHistory(array $payload): void
+    {
+        $products = $payload['products'] ?? [];
+        $sourceCheckedAt = ! empty($payload['refreshed_at']) ? Carbon::parse($payload['refreshed_at']) : null;
+
+        foreach (['cpo', 'pk', 'cpko'] as $category) {
+            $product = $products[$category] ?? null;
+            if (! is_array($product)) {
+                continue;
+            }
+
+            $price = $product['price'] ?? null;
+            $tradeDate = $product['price_date'] ?? null;
+
+            if (! is_numeric($price) || (float) $price <= 0 || empty($tradeDate)) {
+                continue;
+            }
+
+            try {
+                $parsedTradeDate = Carbon::parse((string) $tradeDate)->startOfDay();
+            } catch (\Throwable $exception) {
+                continue;
+            }
+
+            MpobPriceHistory::query()->updateOrCreate(
+                [
+                    'trade_date' => $parsedTradeDate,
+                    'category' => $category,
+                ],
+                [
+                    'price' => round((float) $price, 2),
+                    'source_checked_at' => $sourceCheckedAt,
+                ]
+            );
+        }
     }
 
     private function cachedPrices(): ?array

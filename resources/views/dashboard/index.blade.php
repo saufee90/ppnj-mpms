@@ -57,6 +57,7 @@
 <!-- Harga Harian MPOB -->
 @php
     $mpobProducts = $mpobPrices['products'] ?? [];
+    $mpobTrendData = $mpobTrendData ?? [];
     $mpobSourceAvailable = (bool) ($mpobPrices['source_available'] ?? false);
     $mpobHasAnyPrice = collect($mpobProducts)->contains(fn ($product) => filled($product['price'] ?? null));
 @endphp
@@ -87,6 +88,10 @@
                 $product = $mpobProducts[$code] ?? [];
                 $price = $product['price'] ?? null;
                 $priceDate = $product['price_date'] ?? null;
+                $trend = $mpobTrendData[$code] ?? ['labels' => [], 'values' => [], 'delta' => ['symbol' => '—', 'amount' => 0]];
+                $deltaSymbol = $trend['delta']['symbol'] ?? '—';
+                $deltaAmount = (float) ($trend['delta']['amount'] ?? 0);
+                $trendCount = is_array($trend['values'] ?? null) ? count($trend['values']) : 0;
             @endphp
             <div class="rounded-lg border border-gray-200 p-4 bg-gradient-to-br from-white to-gray-50">
                 <div class="flex items-start justify-between gap-3">
@@ -104,6 +109,27 @@
                         <div class="text-2xl md:text-3xl font-extrabold" style="color: #0B5D32;">RM {{ number_format((float) $price, 2) }} <span class="text-sm font-bold text-gray-500">/ MT</span></div>
                     @else
                         <div class="text-sm font-semibold text-gray-500">Data harga belum tersedia</div>
+                    @endif
+                </div>
+
+                <div class="mt-2 text-xs font-semibold text-gray-700">
+                    @if($deltaSymbol === '▲')
+                        <span>▲ Naik RM {{ number_format(abs($deltaAmount), 2) }} berbanding rekod sebelumnya</span>
+                    @elseif($deltaSymbol === '▼')
+                        <span>▼ Turun RM {{ number_format(abs($deltaAmount), 2) }} berbanding rekod sebelumnya</span>
+                    @else
+                        <span>— Tiada perubahan berbanding rekod sebelumnya</span>
+                    @endif
+                </div>
+
+                <div class="mt-2">
+                    <div class="h-16">
+                        <canvas id="mpobSparkline-{{ $code }}" aria-label="Trend {{ $label }} 30 hari"></canvas>
+                    </div>
+                    @if($trendCount === 0)
+                        <p class="mt-1 text-xs text-gray-400">Trend belum tersedia.</p>
+                    @elseif($trendCount === 1)
+                        <p class="mt-1 text-xs text-gray-400">Trend mengandungi 1 rekod sahaja.</p>
                     @endif
                 </div>
 
@@ -359,6 +385,7 @@
 const labels = @json($labels);
 const greenColor = '#0B5D32';
 const goldColor = '#C9A227';
+const mpobTrendData = @json($mpobTrendData ?? []);
 
 new Chart(document.getElementById('chartBts'), {
     type: 'line',
@@ -383,5 +410,67 @@ new Chart(document.getElementById('chartDowntime'), {
     data: { labels, datasets: [{ label: 'Downtime (jam)', data: @json($downtimeTrend), borderColor: '#DC2626', backgroundColor: '#DC262620', fill: true, tension: 0.3 }] },
     options: { responsive: true }
 });
+
+if (window.Chart) {
+    ['cpo', 'pk', 'cpko'].forEach((category) => {
+        const trend = mpobTrendData[category] || { labels: [], values: [] };
+        const trendLabels = Array.isArray(trend.labels) ? trend.labels : [];
+        const trendValues = Array.isArray(trend.values) ? trend.values : [];
+        if (!trendLabels.length || !trendValues.length) {
+            return;
+        }
+
+        const canvas = document.getElementById(`mpobSparkline-${category}`);
+        if (!canvas) {
+            return;
+        }
+
+        const hasSinglePoint = trendValues.length === 1;
+
+        new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: trendLabels,
+                datasets: [{
+                    data: trendValues,
+                    borderColor: '#0B5D32',
+                    backgroundColor: '#0B5D3214',
+                    fill: false,
+                    tension: 0.35,
+                    pointRadius: hasSinglePoint ? 2.5 : 0,
+                    pointHoverRadius: 4,
+                    borderWidth: 2,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => {
+                                const rawDate = items?.[0]?.label;
+                                if (!rawDate) {
+                                    return '-';
+                                }
+                                const date = new Date(rawDate + 'T00:00:00');
+                                if (Number.isNaN(date.getTime())) {
+                                    return rawDate;
+                                }
+                                return date.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' });
+                            },
+                            label: (item) => `RM ${Number(item.raw || 0).toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / MT`,
+                        },
+                    },
+                },
+                scales: {
+                    x: { display: false },
+                    y: { display: false },
+                },
+            },
+        });
+    });
+}
 </script>
 @endsection

@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Mill;
+use App\Models\MpobPriceHistory;
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\MpobPriceService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
 use Tests\TestCase;
@@ -92,6 +94,90 @@ class DashboardMpobPriceTest extends TestCase
             ->assertSee('RM 11.11', false)
             ->assertSee('RM 10.22', false)
             ->assertSee('RM 9.33', false);
+    }
+
+    public function test_dashboard_opens_without_mpob_history_records(): void
+    {
+        $this->mock(MpobPriceService::class, function ($mock) {
+            $mock->shouldReceive('getForDashboard')->once()->andReturn($this->payload([10.5, 9.25, 8.75]));
+        });
+
+        $this->actingAs($this->admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('mpobSparkline-cpo', false)
+            ->assertSee('mpobSparkline-pk', false)
+            ->assertSee('mpobSparkline-cpko', false)
+            ->assertSee('Trend belum tersedia.', false);
+    }
+
+    public function test_dashboard_supports_less_than_30_history_records(): void
+    {
+        $this->seedHistory('cpo', '2026-07-01', 5, 4500);
+
+        $this->mock(MpobPriceService::class, function ($mock) {
+            $mock->shouldReceive('getForDashboard')->once()->andReturn($this->payload([4600, 3900, 8100]));
+        });
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('"cpo":{"labels":["2026-07-01","2026-07-02","2026-07-03","2026-07-04","2026-07-05"]', false);
+        $response->assertSee('"values":[4500,4501,4502,4503,4504]', false);
+    }
+
+    public function test_dashboard_uses_maximum_30_records_and_sorted_ascending(): void
+    {
+        $this->seedHistory('pk', '2026-06-01', 35, 3000);
+
+        $this->mock(MpobPriceService::class, function ($mock) {
+            $mock->shouldReceive('getForDashboard')->once()->andReturn($this->payload([4600, 3900, 8100]));
+        });
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('"pk":{"labels":["2026-06-06"', false);
+        $response->assertSee('"2026-07-05"]', false);
+        $response->assertDontSee('"2026-06-01"', false);
+    }
+
+    public function test_pengurusan_role_can_access_dashboard(): void
+    {
+        $role = Role::create(['name' => Role::PENGURUSAN, 'label' => 'Pengurusan']);
+        $user = User::create([
+            'name' => 'Pengurusan Tester',
+            'email' => 'pengurusan-dashboard@test.local',
+            'password' => bcrypt('secret'),
+            'role_id' => $role->id,
+            'mill_id' => null,
+            'is_active' => true,
+        ]);
+
+        $this->mock(MpobPriceService::class, function ($mock) {
+            $mock->shouldReceive('getForDashboard')->once()->andReturn($this->payload([10.5, 9.25, 8.75]));
+        });
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Harga Harian MPOB', false);
+    }
+
+    private function seedHistory(string $category, string $startDate, int $days, float $startingPrice): void
+    {
+        $date = Carbon::parse($startDate);
+
+        for ($i = 0; $i < $days; $i++) {
+            MpobPriceHistory::create([
+                'category' => $category,
+                'trade_date' => $date->copy()->addDays($i)->toDateString(),
+                'price' => $startingPrice + $i,
+                'source_checked_at' => now(),
+            ]);
+        }
     }
 
     private function payload(array $prices, bool $sourceAvailable = true, bool $includeTimestamps = true): array
