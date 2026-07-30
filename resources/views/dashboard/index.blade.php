@@ -123,7 +123,7 @@
                 </div>
 
                 <div class="mt-2">
-                    <div class="h-16">
+                    <div class="h-[112px] md:h-[128px]">
                         <canvas id="mpobSparkline-{{ $code }}" aria-label="Trend {{ $label }} 30 hari"></canvas>
                     </div>
                     @if($trendCount === 0)
@@ -412,6 +412,10 @@ new Chart(document.getElementById('chartDowntime'), {
 });
 
 if (window.Chart) {
+    const compactLabelFormatter = new Intl.DateTimeFormat('ms-MY', { day: 'numeric', month: 'short' });
+    const fullLabelFormatter = new Intl.DateTimeFormat('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+    const numberFormatter = new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
     ['cpo', 'pk', 'cpko'].forEach((category) => {
         const trend = mpobTrendData[category] || { labels: [], values: [] };
         const trendLabels = Array.isArray(trend.labels) ? trend.labels : [];
@@ -436,15 +440,20 @@ if (window.Chart) {
                     borderColor: '#0B5D32',
                     backgroundColor: '#0B5D3214',
                     fill: false,
-                    tension: 0.35,
-                    pointRadius: hasSinglePoint ? 2.5 : 0,
-                    pointHoverRadius: 4,
+                    tension: 0.3,
+                    pointRadius: hasSinglePoint ? 3 : 1,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 12,
                     borderWidth: 2,
                 }],
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'nearest',
+                    intersect: false,
+                },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
@@ -458,15 +467,58 @@ if (window.Chart) {
                                 if (Number.isNaN(date.getTime())) {
                                     return rawDate;
                                 }
-                                return date.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' });
+                                return fullLabelFormatter.format(date);
                             },
-                            label: (item) => `RM ${Number(item.raw || 0).toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / MT`,
+                            label: (item) => `Harga: RM ${numberFormatter.format(Number(item.raw || 0))} / MT`,
                         },
                     },
                 },
                 scales: {
-                    x: { display: false },
-                    y: { display: false },
+                    x: {
+                        display: true,
+                        grid: {
+                            display: false,
+                        },
+                        ticks: {
+                            autoSkip: true,
+                            maxTicksLimit: 6,
+                            maxRotation: 0,
+                            minRotation: 0,
+                            color: '#6B7280',
+                            callback: (_value, index) => {
+                                const rawDate = trendLabels[index];
+                                if (!rawDate) {
+                                    return '';
+                                }
+                                const date = new Date(rawDate + 'T00:00:00');
+                                if (Number.isNaN(date.getTime())) {
+                                    return rawDate;
+                                }
+                                return compactLabelFormatter.format(date);
+                            },
+                        },
+                    },
+                    y: {
+                        display: true,
+                        beginAtZero: false,
+                        grid: {
+                            color: 'rgba(107, 114, 128, 0.18)',
+                        },
+                        ticks: {
+                            color: '#6B7280',
+                            maxTicksLimit: 4,
+                            callback: (value) => Number(value).toLocaleString('ms-MY', { maximumFractionDigits: 0 }),
+                        },
+                        title: {
+                            display: true,
+                            text: 'RM/MT',
+                            color: '#4B5563',
+                            font: {
+                                size: 10,
+                                weight: '600',
+                            },
+                        },
+                    },
                 },
             },
         });
