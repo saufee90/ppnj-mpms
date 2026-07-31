@@ -38,7 +38,7 @@ class KpiEvaluationServiceTest extends TestCase
 
     public function test_bts_thresholds_are_stored_and_evaluated_in_mt(): void
     {
-        $this->createFlowSetting('bts_diproses', $this->kbb->id, 2026, [
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kbb->id, 2026, [
             '7' => ['green' => 10800, 'red' => 8640],
         ]);
 
@@ -46,18 +46,40 @@ class KpiEvaluationServiceTest extends TestCase
         $this->assertSame(10800.0, (float) $setting->monthly_targets['7']['green']);
         $this->assertSame(8640.0, (float) $setting->monthly_targets['7']['red']);
 
-        $result = $this->service->evaluate('bts_diproses', 9000.0, $this->kbb->id, 2026, 7, true);
+        $result = $this->service->evaluate('bts_diterima_dan_diproses', 9000.0, $this->kbb->id, 2026, 7, true);
         $this->assertSame('yellow', $result['status']);
         $this->assertSame('MT', $result['unit']);
     }
 
-    public function test_4850_mt_on_16_july_returns_yellow_against_prorated_thresholds(): void
+    public function test_combined_bts_uses_single_target_and_picks_weakest_status(): void
     {
-        $this->createFlowSetting('bts_diproses', $this->kbb->id, 2026, [
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kbb->id, 2026, [
             '7' => ['green' => 10800, 'red' => 8640],
         ]);
 
-        $result = $this->service->evaluate('bts_diproses', 4850.0, $this->kbb->id, 2026, 7, true, '2026-07-16');
+        $result = $this->service->evaluateBtsCombined(
+            11000.0,
+            9000.0,
+            $this->kbb->id,
+            2026,
+            7,
+            true,
+            '2026-07-31'
+        );
+
+        $this->assertSame(10800.0, (float) $result['target']);
+        $this->assertSame('green', $result['received_result']['status']);
+        $this->assertSame('yellow', $result['processed_result']['status']);
+        $this->assertSame('yellow', $result['status']);
+    }
+
+    public function test_4850_mt_on_16_july_returns_yellow_against_prorated_thresholds(): void
+    {
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kbb->id, 2026, [
+            '7' => ['green' => 10800, 'red' => 8640],
+        ]);
+
+        $result = $this->service->evaluate('bts_diterima_dan_diproses', 4850.0, $this->kbb->id, 2026, 7, true, '2026-07-16');
 
         $this->assertSame(5574.19, $result['green_threshold']);
         $this->assertSame(4459.35, $result['red_threshold']);
@@ -79,11 +101,11 @@ class KpiEvaluationServiceTest extends TestCase
 
     public function test_raw_mt_is_not_compared_against_percentage_thresholds(): void
     {
-        $this->createFlowSetting('bts_diproses', $this->kbb->id, 2026, [
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kbb->id, 2026, [
             '7' => ['green' => 10000, 'red' => 8000],
         ]);
 
-        $result = $this->service->evaluate('bts_diproses', 4850.0, $this->kbb->id, 2026, 7, true);
+        $result = $this->service->evaluate('bts_diterima_dan_diproses', 4850.0, $this->kbb->id, 2026, 7, true);
 
         $this->assertSame('red', $result['status']);
         $this->assertSame(10000.0, $result['green_threshold']);
@@ -132,26 +154,46 @@ class KpiEvaluationServiceTest extends TestCase
         $this->assertSame('yellow', $result['status']);
     }
 
-    public function test_downtime_uses_hours_and_lower_is_better(): void
+    public function test_downtime_uses_percentage_and_lower_is_better(): void
     {
-        $this->createDirectSetting('downtime', $this->kbb->id, 2026, 2.0, 5.0);
+        $this->createDirectSetting('downtime', $this->kbb->id, 2026, 3.0, 6.0);
 
-        $green = $this->service->evaluate('downtime', 1.5, $this->kbb->id, 2026);
-        $yellow = $this->service->evaluate('downtime', 3.0, $this->kbb->id, 2026);
-        $red = $this->service->evaluate('downtime', 6.0, $this->kbb->id, 2026);
+        $green = $this->service->evaluateDowntimeFromHours(1.0, 40.0, $this->kbb->id, 2026, 7, true, '2026-07-31');
+        $yellow = $this->service->evaluateDowntimeFromHours(2.0, 40.0, $this->kbb->id, 2026, 7, true, '2026-07-31');
+        $red = $this->service->evaluateDowntimeFromHours(3.0, 40.0, $this->kbb->id, 2026, 7, true, '2026-07-31');
 
-        $this->assertSame('Jam', $green['unit']);
+        $this->assertSame('%', $green['unit']);
+        $this->assertSame(2.5, (float) $green['actual_percentage']);
+        $this->assertSame(5.0, (float) $yellow['actual_percentage']);
+        $this->assertSame(7.5, (float) $red['actual_percentage']);
         $this->assertSame('green', $green['status']);
         $this->assertSame('yellow', $yellow['status']);
         $this->assertSame('red', $red['status']);
     }
 
-    public function test_zero_downtime_hours_returns_green(): void
+    public function test_downtime_returns_not_applicable_when_operating_hours_is_zero(): void
     {
-        $this->createDirectSetting('downtime', $this->kbb->id, 2026, 2.0, 5.0);
+        $this->createDirectSetting('downtime', $this->kbb->id, 2026, 3.0, 6.0);
 
-        $result = $this->service->evaluate('downtime', 0.0, $this->kbb->id, 2026, null, true);
+        $result = $this->service->evaluateDowntimeFromHours(3.0, 0.0, $this->kbb->id, 2026, 7, true, '2026-07-31');
 
+        $this->assertSame('grey', $result['status']);
+        $this->assertSame('Tidak Berkenaan', $result['status_label']);
+        $this->assertNull($result['actual_percentage']);
+    }
+
+    public function test_downtime_monthly_uses_pooled_ratio_not_average_of_daily_percentage(): void
+    {
+        $this->createDirectSetting('downtime', $this->kbb->id, 2026, 3.0, 6.0);
+
+        $rows = collect([
+            (object) ['downtime_jam' => 1.0, 'jam_operasi' => 1.0],
+            (object) ['downtime_jam' => 1.0, 'jam_operasi' => 99.0],
+        ]);
+
+        $result = $this->service->evaluateDowntimeFromRows($rows, $this->kbb->id, 2026, 7, true, '2026-07-31');
+
+        $this->assertSame(2.0, (float) $result['actual_percentage']);
         $this->assertSame('green', $result['status']);
     }
 
@@ -185,11 +227,11 @@ class KpiEvaluationServiceTest extends TestCase
 
     public function test_january_to_june_2026_returns_grey_not_applicable(): void
     {
-        $this->createFlowSetting('bts_diproses', $this->kbb->id, 2026, [
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kbb->id, 2026, [
             '7' => ['green' => 10800, 'red' => 8640],
         ]);
 
-        $result = $this->service->evaluate('bts_diproses', 4500.0, $this->kbb->id, 2026, 3, true, '2026-03-16');
+        $result = $this->service->evaluate('bts_diterima_dan_diproses', 4500.0, $this->kbb->id, 2026, 3, true, '2026-03-16');
 
         $this->assertSame('grey', $result['status']);
         $this->assertSame('Tidak Berkenaan', $result['status_label']);
@@ -210,11 +252,11 @@ class KpiEvaluationServiceTest extends TestCase
 
     public function test_mill_specific_setting_resolves_correctly(): void
     {
-        $this->createFlowSetting('bts_diproses', $this->kbb->id, 2026, [
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kbb->id, 2026, [
             '7' => ['green' => 14000, 'red' => 11200],
         ]);
 
-        $result = $this->service->evaluate('bts_diproses', 10000.0, $this->kbb->id, 2026, 7, true);
+        $result = $this->service->evaluate('bts_diterima_dan_diproses', 10000.0, $this->kbb->id, 2026, 7, true);
 
         $this->assertSame('mill', $result['target_source']);
         $this->assertSame(14000.0, $result['green_threshold']);
@@ -223,11 +265,11 @@ class KpiEvaluationServiceTest extends TestCase
 
     public function test_missing_mill_setting_returns_grey_without_fallback(): void
     {
-        $this->createFlowSetting('bts_diproses', $this->kbb->id, 2026, [
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kbb->id, 2026, [
             '7' => ['green' => 10800, 'red' => 8640],
         ]);
 
-        $result = $this->service->evaluate('bts_diproses', 9000.0, $this->kkhg->id, 2026, 7, true);
+        $result = $this->service->evaluate('bts_diterima_dan_diproses', 9000.0, $this->kkhg->id, 2026, 7, true);
 
         $this->assertSame('grey', $result['status']);
         $this->assertSame('Belum Ditetapkan', $result['status_label']);
@@ -235,11 +277,11 @@ class KpiEvaluationServiceTest extends TestCase
 
     public function test_global_setting_is_not_used_as_fallback(): void
     {
-        $this->createFlowSetting('bts_diproses', null, 2026, [
+        $this->createFlowSetting('bts_diterima_dan_diproses', null, 2026, [
             '7' => ['green' => 10800, 'red' => 8640],
         ]);
 
-        $result = $this->service->evaluate('bts_diproses', 9000.0, $this->kbb->id, 2026, 7, true);
+        $result = $this->service->evaluate('bts_diterima_dan_diproses', 9000.0, $this->kbb->id, 2026, 7, true);
 
         $this->assertSame('grey', $result['status']);
         $this->assertSame('Belum Ditetapkan', $result['status_label']);
@@ -247,15 +289,15 @@ class KpiEvaluationServiceTest extends TestCase
 
     public function test_kbb_and_kkhg_values_remain_independent(): void
     {
-        $this->createFlowSetting('bts_diproses', $this->kbb->id, 2026, [
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kbb->id, 2026, [
             '7' => ['green' => 14000, 'red' => 11200],
         ]);
-        $this->createFlowSetting('bts_diproses', $this->kkhg->id, 2026, [
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kkhg->id, 2026, [
             '7' => ['green' => 10800, 'red' => 8640],
         ]);
 
-        $kbbResult = $this->service->evaluate('bts_diproses', 10000.0, $this->kbb->id, 2026, 7, true);
-        $kkhgResult = $this->service->evaluate('bts_diproses', 10000.0, $this->kkhg->id, 2026, 7, true);
+        $kbbResult = $this->service->evaluate('bts_diterima_dan_diproses', 10000.0, $this->kbb->id, 2026, 7, true);
+        $kkhgResult = $this->service->evaluate('bts_diterima_dan_diproses', 10000.0, $this->kkhg->id, 2026, 7, true);
 
         $this->assertSame('red', $kbbResult['status']);
         $this->assertSame('yellow', $kkhgResult['status']);
@@ -273,7 +315,7 @@ class KpiEvaluationServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->createFlowSetting('bts_diproses', $this->kbb->id, 2026, [
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kbb->id, 2026, [
             '7' => ['green' => 10800, 'red' => 8640],
         ]);
 

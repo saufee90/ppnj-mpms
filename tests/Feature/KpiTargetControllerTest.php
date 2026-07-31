@@ -104,6 +104,38 @@ class KpiTargetControllerTest extends TestCase
         }
     }
 
+    public function test_kpi_settings_shows_single_bts_indicator_only(): void
+    {
+        $admin = $this->createUserWithRole('admin');
+
+        $response = $this->actingAs($admin)
+            ->get(route('kpi.index', ['scope' => (string) $this->kbbId, 'year' => 2026]))
+            ->assertOk();
+
+        $html = $response->getContent();
+
+        $this->assertStringContainsString('Penerimaan &amp; Pemprosesan BTS', $html);
+        $this->assertSame(1, substr_count($html, 'name="settings[bts_diterima_dan_diproses][period_target]"'));
+        $this->assertStringNotContainsString('Total BTS Diterima', $html);
+        $this->assertStringNotContainsString('settings[total_bts_diterima]', $html);
+        $this->assertStringNotContainsString('settings[bts_diproses]', $html);
+        $this->assertStringContainsString('settings[bts_diterima_dan_diproses]', $html);
+    }
+
+    public function test_kpi_settings_shows_downtime_as_percentage(): void
+    {
+        $admin = $this->createUserWithRole('admin');
+
+        $response = $this->actingAs($admin)
+            ->get(route('kpi.index', ['scope' => (string) $this->kbbId, 'year' => 2026]))
+            ->assertOk();
+
+        $html = $response->getContent();
+
+        $this->assertStringContainsString('Downtime (%)', $html);
+        $this->assertStringNotContainsString('Downtime (Jam)', $html);
+    }
+
     public function test_invalid_numeric_input_is_rejected_and_not_converted_to_null(): void
     {
         $admin = $this->createUserWithRole('admin');
@@ -202,7 +234,7 @@ class KpiTargetControllerTest extends TestCase
         $admin = $this->createUserWithRole('admin');
 
         $payload = $this->basePayload([
-            'bts_diproses' => [
+            'bts_diterima_dan_diproses' => [
                 'monthly_targets' => [
                     7 => ['green' => 10800, 'red' => 8640],
                 ],
@@ -213,7 +245,7 @@ class KpiTargetControllerTest extends TestCase
             ->post(route('kpi.store'), $payload)
             ->assertRedirect();
 
-        $setting = KpiIndicatorSetting::where('indicator_code', 'bts_diproses')->firstOrFail();
+        $setting = KpiIndicatorSetting::where('indicator_code', 'bts_diterima_dan_diproses')->firstOrFail();
         $this->assertSame('MT', $setting->unit);
         $this->assertNull($setting->green_threshold);
         $this->assertNull($setting->red_threshold);
@@ -226,7 +258,7 @@ class KpiTargetControllerTest extends TestCase
         $admin = $this->createUserWithRole('admin');
 
         $payload = $this->basePayload([
-            'bts_diproses' => [
+            'bts_diterima_dan_diproses' => [
                 'monthly_targets' => [
                     6 => ['green' => 9999, 'red' => 8888],
                     7 => ['green' => 10800, 'red' => 8640],
@@ -238,7 +270,7 @@ class KpiTargetControllerTest extends TestCase
             ->post(route('kpi.store'), $payload)
             ->assertRedirect();
 
-        $targets = KpiIndicatorSetting::where('indicator_code', 'bts_diproses')->firstOrFail()->monthly_targets;
+        $targets = KpiIndicatorSetting::where('indicator_code', 'bts_diterima_dan_diproses')->firstOrFail()->monthly_targets;
         $this->assertArrayNotHasKey('6', $targets);
         $this->assertArrayHasKey('7', $targets);
     }
@@ -279,7 +311,7 @@ class KpiTargetControllerTest extends TestCase
         ]);
 
         $monthlyPayload = $this->basePayload([
-            'bts_diproses' => [
+            'bts_diterima_dan_diproses' => [
                 'monthly_targets' => [
                     7 => ['green' => 10800, 'red' => null],
                 ],
@@ -302,7 +334,7 @@ class KpiTargetControllerTest extends TestCase
         $admin = $this->createUserWithRole('admin');
 
         $payload = $this->basePayload([
-            'bts_diproses' => [
+            'bts_diterima_dan_diproses' => [
                 'monthly_targets' => [
                     7 => ['green' => '1000', 'red' => ''],
                 ],
@@ -321,7 +353,7 @@ class KpiTargetControllerTest extends TestCase
         $admin = $this->createUserWithRole('admin');
 
         $payload = $this->basePayload([
-            'bts_diproses' => [
+            'bts_diterima_dan_diproses' => [
                 'monthly_targets' => [
                     7 => ['green' => '1000', 'red' => '800'],
                 ],
@@ -332,7 +364,7 @@ class KpiTargetControllerTest extends TestCase
             ->post(route('kpi.store'), $payload)
             ->assertRedirect();
 
-        $setting = KpiIndicatorSetting::where('indicator_code', 'bts_diproses')
+        $setting = KpiIndicatorSetting::where('indicator_code', 'bts_diterima_dan_diproses')
             ->where('mill_id', $this->kbbId)
             ->where('year', 2026)
             ->firstOrFail();
@@ -364,7 +396,7 @@ class KpiTargetControllerTest extends TestCase
         $admin = $this->createUserWithRole('admin');
 
         $payload = $this->basePayload([
-            'bts_diproses' => [
+            'bts_diterima_dan_diproses' => [
                 'monthly_targets' => [
                     7 => ['green' => 10800, 'red' => 8640],
                 ],
@@ -388,7 +420,7 @@ class KpiTargetControllerTest extends TestCase
         $admin = $this->createUserWithRole('admin');
 
         $payload = $this->basePayload([
-            'bts_diproses' => [
+            'bts_diterima_dan_diproses' => [
                 'monthly_targets' => [
                     7 => ['green' => 10800, 'red' => 8640],
                 ],
@@ -419,7 +451,7 @@ class KpiTargetControllerTest extends TestCase
         $admin = $this->createUserWithRole('admin');
 
         $payload = $this->basePayload([
-            'bts_diproses' => [
+            'bts_diterima_dan_diproses' => [
                 'monthly_targets' => [
                     7 => ['green' => 10800, 'red' => 8640],
                 ],
@@ -447,7 +479,7 @@ class KpiTargetControllerTest extends TestCase
         $admin = $this->createUserWithRole('admin');
 
         $kbbPayload = $this->basePayload([
-            'bts_diproses' => [
+            'bts_diterima_dan_diproses' => [
                 'monthly_targets' => [
                     7 => ['green' => 14000, 'red' => 11200],
                 ],
@@ -456,7 +488,7 @@ class KpiTargetControllerTest extends TestCase
         $kbbPayload['scope'] = (string) $this->kbbId;
 
         $kkhgPayload = $this->basePayload([
-            'bts_diproses' => [
+            'bts_diterima_dan_diproses' => [
                 'monthly_targets' => [
                     7 => ['green' => 10800, 'red' => 8640],
                 ],
@@ -472,8 +504,8 @@ class KpiTargetControllerTest extends TestCase
             ->post(route('kpi.store'), $kkhgPayload)
             ->assertRedirect();
 
-        $kbbSetting = KpiIndicatorSetting::where('indicator_code', 'bts_diproses')->where('mill_id', $this->kbbId)->firstOrFail();
-        $kkhgSetting = KpiIndicatorSetting::where('indicator_code', 'bts_diproses')->where('mill_id', $this->kkhgId)->firstOrFail();
+        $kbbSetting = KpiIndicatorSetting::where('indicator_code', 'bts_diterima_dan_diproses')->where('mill_id', $this->kbbId)->firstOrFail();
+        $kkhgSetting = KpiIndicatorSetting::where('indicator_code', 'bts_diterima_dan_diproses')->where('mill_id', $this->kkhgId)->firstOrFail();
 
         $this->assertSame(14000.0, (float) $kbbSetting->monthly_targets['7']['green']);
         $this->assertSame(10800.0, (float) $kkhgSetting->monthly_targets['7']['green']);

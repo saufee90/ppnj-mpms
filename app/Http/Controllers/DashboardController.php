@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\DailyOperation;
-use App\Models\KpiIndicatorSetting;
 use App\Models\Mill;
 use App\Models\MpobPriceHistory;
+use App\Services\KpiEvaluationService;
 use App\Services\MpobPriceService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -14,6 +14,10 @@ use App\Services\DashboardPdfService;
 class DashboardController extends Controller
 {
     private const YTD_BASELINE_DATE = '2026-07-01';
+
+    public function __construct(private readonly KpiEvaluationService $kpiEvaluationService)
+    {
+    }
 
     public function index(Request $request, MpobPriceService $mpobPriceService)
     {
@@ -58,7 +62,7 @@ class DashboardController extends Controller
         $referenceDays = Carbon::yesterday()->day;
 
         // Metrik Harian: gunakan data semalam
-        $todayData = (clone $baseQuery)->where('tarikh', $displayDate)->get();
+        $todayData = (clone $baseQuery)->whereDate('tarikh', $displayDate)->get();
 
         // Status Operasi Kilang: guna rekod terbaru sehingga tarikh paparan semasa
         $latestOperationalRecord = (clone $baseQuery)
@@ -162,7 +166,7 @@ class DashboardController extends Controller
         $millsBelumHantar = collect();
         foreach ($mills as $mill) {
             // Semak penghantaran untuk tarikh semalam
-            $exists = DailyOperation::where('mill_id', $mill->id)->where('tarikh', $displayDate)->exists();
+            $exists = DailyOperation::where('mill_id', $mill->id)->whereDate('tarikh', $displayDate)->exists();
             if (! $exists) {
                 $millsBelumHantar->push($mill->name);
             }
@@ -192,24 +196,13 @@ class DashboardController extends Controller
             $btsProcessedTrend[] = round($rows->sum('bts_diproses'), 2);
             $oerTrend[] = round($this->computeRateFromRows($rows, 'produksi_cpo'), 2);
             $kerTrend[] = round($this->computeRateFromRows($rows, 'produksi_pk'), 2);
-            $downtimeTrend[] = round((float) $rows->sum('downtime_jam'), 2);
+            $downtimeTrend[] = $this->kpiEvaluationService->calculateDowntimePercentageFromRows($rows);
 
             $cursor->addDay();
         }
 
         $currentYear = now()->year;
-
-        $activeAlertSettings = KpiIndicatorSetting::query()
-            ->where('year', $currentYear)
-            ->where('is_active', true)
-            ->whereIn('indicator_code', ['oer', 'downtime'])
-            ->whereNotNull('mill_id')
-            ->orderByDesc('id')
-            ->get()
-            ->groupBy(fn (KpiIndicatorSetting $setting) => (int) $setting->mill_id)
-            ->map(function ($settingsByMill) {
-                return $settingsByMill->keyBy('indicator_code');
-            });
+        $displayMonth = (int) Carbon::parse($displayDate)->month;
 
         $alertMessages = [];
         foreach ($mills as $mill) {
@@ -220,21 +213,52 @@ class DashboardController extends Controller
 
             $millName = "Kilang Sawit PPNJ {$mill->name}";
             $millOer = $this->computeRateFromRows($millTodayData, 'produksi_cpo');
-            $millDowntime = $millTodayData->sum('downtime_jam');
+            $oerResult = $this->kpiEvaluationService->evaluate(
+                'oer',
+                $millOer,
+                $mill->id,
+                $currentYear,
+                $displayMonth,
+                true,
+                $displayDate
+            );
 
-            $millSettings = $activeAlertSettings->get($mill->id, collect());
-            $oerSetting = $millSettings->get('oer');
-            $downtimeSetting = $millSettings->get('downtime');
-
-            $oerRedThreshold = $oerSetting?->red_threshold;
-            $downtimeRedThreshold = $downtimeSetting?->red_threshold;
-
-            if ($millOer > 0 && $oerRedThreshold !== null && $millOer <= $oerRedThreshold) {
-                $alertMessages[] = "🔻 OER {$millName} hari ini (" . number_format($millOer, 2) . "%) berada pada atau di bawah ambang merah KPI (" . number_format((float) $oerRedThreshold, 2) . "%).";
+            if (($oerResult['status'] ?? 'grey') === 'red') {
+                $alertMessages[] = "🔻 OER {$millName} hari ini (" . number_format($millOer, 2) . "%) berada pada atau di bawah ambang merah KPI (" . number_format((float) ($oerResult['red_threshold'] ?? 0), 2) . "%).";
             }
 
-            if ($downtimeRedThreshold !== null && $millDowntime >= $downtimeRedThreshold) {
-                $alertMessages[] = "⏱️ Downtime {$millName} hari ini (" . number_format($millDowntime, 2) . " jam) berada pada atau melepasi ambang merah KPI (" . number_format((float) $downtimeRedThreshold, 2) . " jam).";
+            $downtimeResult = $this->kpiEvaluationService->evaluateDowntimeFromRows(
+                $millTodayData,
+                $mill->id,
+                $currentYear,
+                $displayMonth,
+                true,
+                $displayDate
+            );
+
+            if (($downtimeResult['status'] ?? 'grey') === 'red') {
+                $alertMessages[] = "⏱️ Downtime {$millName} hari ini (" . number_format((float) ($downtimeResult['actual_percentage'] ?? 0), 2) . "%) berada pada atau melepasi ambang merah KPI (" . number_format((float) ($downtimeResult['red_threshold'] ?? 0), 2) . "%).";
+            }
+
+            $btsResult = $this->kpiEvaluationService->evaluateBtsCombined(
+                (float) $millTodayData->sum('bts_diterima'),
+                (float) $millTodayData->sum('bts_diproses'),
+                $mill->id,
+                $currentYear,
+                $displayMonth,
+                true,
+                $displayDate
+            );
+
+            if (in_array(($btsResult['status'] ?? 'grey'), ['red', 'yellow'], true)) {
+                $statusLabel = strtoupper((string) ($btsResult['status_label'] ?? 'Perhatian'));
+                $alertMessages[] = "📦 KPI BTS {$millName}: {$statusLabel}. Diterima "
+                    . number_format((float) ($btsResult['actual_bts_diterima'] ?? 0), 2)
+                    . " MT, Diproses "
+                    . number_format((float) ($btsResult['actual_bts_diproses'] ?? 0), 2)
+                    . " MT, Sasaran "
+                    . number_format((float) ($btsResult['target'] ?? 0), 2)
+                    . " MT.";
             }
         }
 
@@ -317,6 +341,7 @@ class DashboardController extends Controller
             'oerTrend' => $oerTrend,
             'kerTrend' => $kerTrend,
             'downtimeTrend' => $downtimeTrend,
+            'alertMessages' => $alertMessages,
             'qualityPendingCount' => $qualityPendingCount,
             'dailyMetrics' => $dailyMetrics,
             'mtdMetrics' => $mtdMetrics,

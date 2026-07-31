@@ -7,6 +7,13 @@ use Carbon\Carbon;
 
 class KpiEvaluationService
 {
+    private const STATUS_PRIORITY = [
+        'red' => 4,
+        'yellow' => 3,
+        'grey' => 2,
+        'green' => 1,
+    ];
+
     private const NOTE_2026 = 'Pengiraan YTD tahun 2026 adalah berdasarkan data MPS bermula 1 Julai 2026.';
 
     /**
@@ -16,21 +23,12 @@ class KpiEvaluationService
     {
         return [
             [
-                'code' => 'total_bts_diterima',
-                'name' => 'Total BTS Diterima',
+                'code' => 'bts_diterima_dan_diproses',
+                'name' => 'Penerimaan & Pemprosesan BTS',
                 'unit' => 'MT',
                 'direction' => 'higher_is_better',
                 'evaluation_basis' => 'monthly_flow',
-                'section' => 'Penerimaan dan Pemprosesan BTS',
-                'supports_monthly_target' => true,
-            ],
-            [
-                'code' => 'bts_diproses',
-                'name' => 'BTS Diproses',
-                'unit' => 'MT',
-                'direction' => 'higher_is_better',
-                'evaluation_basis' => 'monthly_flow',
-                'section' => 'Penerimaan dan Pemprosesan BTS',
+                'section' => 'Penerimaan & Pemprosesan BTS',
                 'supports_monthly_target' => true,
             ],
             [
@@ -107,8 +105,8 @@ class KpiEvaluationService
             ],
             [
                 'code' => 'downtime',
-                'name' => 'Downtime (Jam)',
-                'unit' => 'Jam',
+                'name' => 'Downtime (%)',
+                'unit' => '%',
                 'direction' => 'lower_is_better',
                 'evaluation_basis' => 'direct_value',
                 'section' => 'Stok dan Downtime',
@@ -228,6 +226,168 @@ class KpiEvaluationService
             'red' => null,
             'target_type' => 'none',
             'target_label' => 'Belum Ditetapkan',
+        ];
+    }
+
+    public function calculateDowntimePercentage(float $downtimeHours, float $operatingHours): ?float
+    {
+        if ($operatingHours <= 0) {
+            return null;
+        }
+
+        return round(($downtimeHours / $operatingHours) * 100, 2);
+    }
+
+    public function calculateDowntimePercentageFromRows(iterable $rows): ?float
+    {
+        $totalDowntimeHours = 0.0;
+        $totalOperatingHours = 0.0;
+
+        foreach ($rows as $row) {
+            $totalDowntimeHours += (float) ($row->downtime_jam ?? 0);
+            $totalOperatingHours += (float) ($row->jam_operasi ?? 0);
+        }
+
+        return $this->calculateDowntimePercentage($totalDowntimeHours, $totalOperatingHours);
+    }
+
+    public function evaluateDowntimeFromHours(
+        float $downtimeHours,
+        float $operatingHours,
+        ?int $millId,
+        int $year,
+        ?int $month = null,
+        ?bool $hasOperationalData = null,
+        ?string $asOfDate = null
+    ): array {
+        $downtimePercentage = $this->calculateDowntimePercentage($downtimeHours, $operatingHours);
+
+        if ($downtimePercentage === null) {
+            $indicator = self::indicatorMap()['downtime'] ?? [
+                'code' => 'downtime',
+                'name' => 'Downtime (%)',
+                'unit' => '%',
+                'evaluation_basis' => 'direct_value',
+            ];
+
+            return $this->buildGreyResult(
+                $indicator,
+                null,
+                'Tidak Berkenaan',
+                'Jumlah jam proses adalah sifar. Downtime tidak boleh dinilai.',
+                null,
+                [
+                    'actual' => null,
+                    'actual_percentage' => null,
+                    'actual_downtime_hours' => round($downtimeHours, 2),
+                    'actual_operating_hours' => round($operatingHours, 2),
+                ]
+            );
+        }
+
+        $result = $this->evaluate(
+            'downtime',
+            $downtimePercentage,
+            $millId,
+            $year,
+            $month,
+            $hasOperationalData,
+            $asOfDate
+        );
+
+        return array_merge($result, [
+            'actual' => $downtimePercentage,
+            'actual_percentage' => $downtimePercentage,
+            'actual_downtime_hours' => round($downtimeHours, 2),
+            'actual_operating_hours' => round($operatingHours, 2),
+        ]);
+    }
+
+    public function evaluateDowntimeFromRows(
+        iterable $rows,
+        ?int $millId,
+        int $year,
+        ?int $month = null,
+        ?bool $hasOperationalData = null,
+        ?string $asOfDate = null
+    ): array {
+        $totalDowntimeHours = 0.0;
+        $totalOperatingHours = 0.0;
+        $rowCount = 0;
+
+        foreach ($rows as $row) {
+            $totalDowntimeHours += (float) ($row->downtime_jam ?? 0);
+            $totalOperatingHours += (float) ($row->jam_operasi ?? 0);
+            $rowCount++;
+        }
+
+        return $this->evaluateDowntimeFromHours(
+            $totalDowntimeHours,
+            $totalOperatingHours,
+            $millId,
+            $year,
+            $month,
+            $hasOperationalData ?? ($rowCount > 0),
+            $asOfDate
+        );
+    }
+
+    public function evaluateBtsCombined(
+        ?float $actualBtsDiterima,
+        ?float $actualBtsDiproses,
+        ?int $millId,
+        int $year,
+        ?int $month = null,
+        ?bool $hasOperationalData = null,
+        ?string $asOfDate = null
+    ): array {
+        $diterimaResult = $this->evaluate(
+            'bts_diterima_dan_diproses',
+            $actualBtsDiterima,
+            $millId,
+            $year,
+            $month,
+            $hasOperationalData,
+            $asOfDate
+        );
+
+        $diprosesResult = $this->evaluate(
+            'bts_diterima_dan_diproses',
+            $actualBtsDiproses,
+            $millId,
+            $year,
+            $month,
+            $hasOperationalData,
+            $asOfDate
+        );
+
+        $overallResult = $this->resolveWeakestResult([$diterimaResult, $diprosesResult]);
+        $target = $overallResult['green_threshold'] ?? null;
+
+        return [
+            'indicator_code' => 'bts_diterima_dan_diproses',
+            'indicator_name' => 'Penerimaan & Pemprosesan BTS',
+            'unit' => 'MT',
+            'actual_bts_diterima' => $actualBtsDiterima,
+            'actual_bts_diproses' => $actualBtsDiproses,
+            'target' => $target,
+            'status' => $overallResult['status'],
+            'status_label' => $overallResult['status_label'],
+            'colour' => $overallResult['colour'],
+            'target_source' => $overallResult['target_source'] ?? 'none',
+            'target_type' => $overallResult['target_type'] ?? 'none',
+            'target_label' => $overallResult['target_label'] ?? 'Belum Ditetapkan',
+            'target_value' => $overallResult['target_value'] ?? null,
+            'evaluation_basis' => $overallResult['evaluation_basis'] ?? 'monthly_flow',
+            'expected_target_to_date' => $overallResult['expected_target_to_date'] ?? null,
+            'variance_bts_diterima' => $target !== null && $actualBtsDiterima !== null
+                ? round($actualBtsDiterima - (float) $target, 2)
+                : null,
+            'variance_bts_diproses' => $target !== null && $actualBtsDiproses !== null
+                ? round($actualBtsDiproses - (float) $target, 2)
+                : null,
+            'received_result' => $diterimaResult,
+            'processed_result' => $diprosesResult,
         ];
     }
 
@@ -533,5 +693,25 @@ class KpiEvaluationService
             'message' => $message,
             'explanation' => $message,
         ], $extra);
+    }
+
+    private function resolveWeakestResult(array $results): array
+    {
+        $weakest = $results[0] ?? [
+            'status' => 'grey',
+            'status_label' => 'Belum Ditetapkan',
+            'colour' => '#9CA3AF',
+        ];
+        $weakestPriority = self::STATUS_PRIORITY[$weakest['status'] ?? 'grey'] ?? 0;
+
+        foreach ($results as $result) {
+            $priority = self::STATUS_PRIORITY[$result['status'] ?? 'grey'] ?? 0;
+            if ($priority > $weakestPriority) {
+                $weakest = $result;
+                $weakestPriority = $priority;
+            }
+        }
+
+        return $weakest;
     }
 }

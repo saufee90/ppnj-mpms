@@ -37,7 +37,7 @@
     $hasFormErrors = $errors->any();
 
     $sectionDescriptions = [
-        'Penerimaan dan Pemprosesan BTS' => 'Tetapan KPI penerimaan dan pemprosesan BTS bagi operasi harian.',
+        'Penerimaan & Pemprosesan BTS' => 'Tetapan KPI penerimaan dan pemprosesan BTS bagi operasi harian.',
         'Prestasi Pengeluaran' => 'Tetapan KPI pengeluaran CPO/PK dan kualiti prestasi kilang.',
         'Stok dan Downtime' => 'Tetapan KPI kawalan stok dan masa henti operasi kilang.',
         'Jualan Berbanding Pengeluaran' => 'Tetapan KPI perbandingan jualan dengan jumlah pengeluaran.',
@@ -88,7 +88,7 @@
         <summary class="cursor-pointer text-sm font-semibold text-gray-800">Lihat Contoh</summary>
         <div class="mt-3 text-sm text-gray-700 space-y-2">
             <p>Contoh BTS Diproses: Hijau 10,800 MT, Merah 8,640 MT. Nilai antara kedua-duanya akan ditandakan Kuning.</p>
-            <p>Contoh Downtime: Hijau 2 Jam, Merah 5 Jam. Downtime 3 Jam akan ditandakan Kuning.</p>
+            <p>Contoh Downtime: Hijau 3.00%, Merah 6.00%. Nilai antara kedua-duanya akan ditandakan Kuning.</p>
         </div>
     </details>
 </div>
@@ -226,57 +226,6 @@
             </div>
         </details>
     @endforeach
-
-    <details class="bg-white rounded-2xl shadow-sm border">
-        <summary class="cursor-pointer px-5 py-4">
-            <h3 class="text-lg font-semibold ppnj-green-text">Rekod KPI Lama</h3>
-            <p class="text-sm text-gray-600 mt-1">Rekod ini dikekalkan untuk kegunaan fungsi lama MPS dan tidak perlu dikemas kini di halaman ini.</p>
-        </summary>
-
-        <div class="px-5 pb-5 overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-50 text-gray-600">
-                    <tr>
-                        <th class="px-4 py-3 text-left">Kilang</th>
-                        <th class="px-4 py-3 text-center">Tahun</th>
-                        <th class="px-4 py-3 text-right">OER%</th>
-                        <th class="px-4 py-3 text-right">KER%</th>
-                        <th class="px-4 py-3 text-right">FFA%</th>
-                        <th class="px-4 py-3 text-right">Downtime Max (Jam)</th>
-                        <th class="px-4 py-3 text-center">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y">
-                    @forelse($legacyTargets as $target)
-                        @php
-                            $legacyScope = 'Global';
-                            if ($target->mill) {
-                                $legacyScope = match($target->mill->code) {
-                                    'BBJ' => 'KBB',
-                                    'KHG' => 'KKHG',
-                                    default => $target->mill->code,
-                                };
-                                $legacyScope .= ' - ' . $target->mill->name;
-                            }
-                        @endphp
-                        <tr>
-                            <td class="px-4 py-3">{{ $legacyScope }}</td>
-                            <td class="px-4 py-3 text-center">{{ $target->effective_year }}</td>
-                            <td class="px-4 py-3 text-right">{{ number_format($target->oer_target, 2) }}</td>
-                            <td class="px-4 py-3 text-right">{{ number_format($target->ker_target, 2) }}</td>
-                            <td class="px-4 py-3 text-right">{{ number_format($target->ffa_max, 2) }}</td>
-                            <td class="px-4 py-3 text-right">{{ number_format($target->downtime_max_hours, 2) }}</td>
-                            <td class="px-4 py-3 text-center">{{ $target->is_active ? 'Aktif' : 'Tidak Aktif' }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="px-4 py-6 text-center text-gray-400">Tiada rekod KPI legacy.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </details>
 
     <div class="fixed bottom-0 left-0 right-0 md:left-64 border-t bg-white/95 backdrop-blur px-4 py-3 z-20">
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
