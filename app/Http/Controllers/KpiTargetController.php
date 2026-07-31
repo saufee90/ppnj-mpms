@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\KpiIndicatorSetting;
-use App\Models\KpiTarget;
 use App\Models\Mill;
 use App\Services\KpiEvaluationService;
 use Illuminate\Http\Request;
@@ -57,11 +56,6 @@ class KpiTargetController extends Controller
             ->get()
             ->keyBy('indicator_code');
 
-        $legacyTargets = KpiTarget::with('mill')
-            ->orderByDesc('effective_year')
-            ->orderByDesc('id')
-            ->get();
-
         $settingsBySection = [];
         foreach ($indicatorCatalog as $indicator) {
             $setting = $savedSettings->get($indicator['code']);
@@ -91,7 +85,6 @@ class KpiTargetController extends Controller
             'settingsBySection' => $settingsBySection,
             'periodInfo' => $periodInfo,
             'applicableMonths' => $applicableMonths,
-            'legacyTargets' => $legacyTargets,
         ]);
     }
 

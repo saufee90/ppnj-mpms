@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DailyOperation;
-use App\Models\KpiTarget;
+use App\Models\KpiIndicatorSetting;
 use App\Models\Mill;
 use App\Models\MpobPriceHistory;
 use App\Services\MpobPriceService;
@@ -197,7 +197,19 @@ class DashboardController extends Controller
             $cursor->addDay();
         }
 
-        $target = KpiTarget::getActiveTarget($selectedMillId, now()->year);
+        $currentYear = now()->year;
+
+        $activeAlertSettings = KpiIndicatorSetting::query()
+            ->where('year', $currentYear)
+            ->where('is_active', true)
+            ->whereIn('indicator_code', ['oer', 'downtime'])
+            ->whereNotNull('mill_id')
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy(fn (KpiIndicatorSetting $setting) => (int) $setting->mill_id)
+            ->map(function ($settingsByMill) {
+                return $settingsByMill->keyBy('indicator_code');
+            });
 
         $alertMessages = [];
         foreach ($mills as $mill) {
@@ -210,18 +222,24 @@ class DashboardController extends Controller
             $millOer = $this->computeRateFromRows($millTodayData, 'produksi_cpo');
             $millDowntime = $millTodayData->sum('downtime_jam');
 
-            if ($millOer > 0 && $millOer < $target->oer_target) {
-                $alertMessages[] = "🔻 OER {$millName} hari ini (" . number_format($millOer, 2) . "%) berada di bawah sasaran (" . number_format($target->oer_target, 2) . "%).";
+            $millSettings = $activeAlertSettings->get($mill->id, collect());
+            $oerSetting = $millSettings->get('oer');
+            $downtimeSetting = $millSettings->get('downtime');
+
+            $oerRedThreshold = $oerSetting?->red_threshold;
+            $downtimeRedThreshold = $downtimeSetting?->red_threshold;
+
+            if ($millOer > 0 && $oerRedThreshold !== null && $millOer <= $oerRedThreshold) {
+                $alertMessages[] = "🔻 OER {$millName} hari ini (" . number_format($millOer, 2) . "%) berada pada atau di bawah ambang merah KPI (" . number_format((float) $oerRedThreshold, 2) . "%).";
             }
 
-            if ($millDowntime > $target->downtime_max_hours) {
-                $alertMessages[] = "⏱️ Downtime {$millName} hari ini (" . number_format($millDowntime, 2) . " jam) melebihi had yang ditetapkan (" . number_format($target->downtime_max_hours, 2) . " jam).";
+            if ($downtimeRedThreshold !== null && $millDowntime >= $downtimeRedThreshold) {
+                $alertMessages[] = "⏱️ Downtime {$millName} hari ini (" . number_format($millDowntime, 2) . " jam) berada pada atau melepasi ambang merah KPI (" . number_format((float) $downtimeRedThreshold, 2) . " jam).";
             }
         }
 
         $mtd = (clone $baseQuery)->forMonth(now()->year, now()->month)->get();
 
-        $currentYear = now()->year;
         $ytdStartDate = $currentYear === 2026
             ? Carbon::parse(self::YTD_BASELINE_DATE)->toDateString()
             : Carbon::create($currentYear, 1, 1)->toDateString();
@@ -299,7 +317,6 @@ class DashboardController extends Controller
             'oerTrend' => $oerTrend,
             'kerTrend' => $kerTrend,
             'downtimeTrend' => $downtimeTrend,
-            'target' => $target,
             'qualityPendingCount' => $qualityPendingCount,
             'dailyMetrics' => $dailyMetrics,
             'mtdMetrics' => $mtdMetrics,

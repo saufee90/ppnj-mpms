@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\KpiEvaluationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -42,6 +43,39 @@ class KpiTargetControllerTest extends TestCase
         $this->actingAs($admin)
             ->get(route('kpi.index'))
             ->assertOk();
+    }
+
+    public function test_kpi_settings_page_does_not_render_legacy_section(): void
+    {
+        $admin = $this->createUserWithRole('admin');
+
+        $this->actingAs($admin)
+            ->get(route('kpi.index', ['scope' => (string) $this->kbbId, 'year' => 2026]))
+            ->assertOk()
+            ->assertDontSee('Rekod KPI Lama')
+            ->assertDontSee('Downtime Max (Jam)')
+            ->assertDontSee('Tiada rekod KPI legacy.');
+    }
+
+    public function test_kpi_settings_page_does_not_query_legacy_kpi_targets_table(): void
+    {
+        $admin = $this->createUserWithRole('admin');
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->actingAs($admin)
+            ->get(route('kpi.index', ['scope' => (string) $this->kbbId, 'year' => 2026]))
+            ->assertOk();
+
+        $queries = collect(DB::getQueryLog())
+            ->pluck('query')
+            ->map(static fn ($query) => mb_strtolower((string) $query));
+
+        $this->assertFalse(
+            $queries->contains(static fn (string $query) => str_contains($query, 'kpi_targets')),
+            'Halaman Tetapan KPI masih membuat query kepada jadual legacy kpi_targets.'
+        );
     }
 
     public function test_kpi_page_renders_each_monthly_input_name_once_per_indicator_and_month(): void
