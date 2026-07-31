@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\DailyOperation;
 use App\Models\KpiIndicatorSetting;
 use App\Models\Mill;
-use App\Models\MpobPriceHistory;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\KpiEvaluationService;
@@ -345,29 +344,6 @@ class ManagementMonthlyReportTest extends TestCase
         $this->assertNotContains('2026-07-03', array_column($trend, 'date'));
     }
 
-    public function test_mpob_history_is_optional_and_monthly_context_is_calculated_from_local_rows(): void
-    {
-        $withoutHistory = $this->service->generate($this->admin, 2026, 7);
-        $this->assertFalse($withoutHistory['flags']['showMpobSection']);
-
-        foreach ([['2026-07-01', 100.0], ['2026-07-15', 120.0], ['2026-07-31', 110.0]] as [$date, $price]) {
-            MpobPriceHistory::create(['category' => 'cpo', 'trade_date' => $date, 'price' => $price]);
-        }
-
-        $withHistory = $this->service->generate($this->admin, 2026, 7);
-        $cpo = $withHistory['mpob']['products']['cpo'];
-
-        $this->assertTrue($withHistory['flags']['showMpobSection']);
-        $this->assertSame(100.0, $cpo['opening_price']);
-        $this->assertSame(110.0, $cpo['closing_price']);
-        $this->assertSame(120.0, $cpo['highest_price']);
-        $this->assertSame(100.0, $cpo['lowest_price']);
-        $this->assertSame(110.0, $cpo['average_price']);
-        $this->assertSame(10.0, $cpo['change_rm']);
-        $this->assertSame(10.0, $cpo['change_percentage']);
-        $this->assertCount(3, $cpo['trend']);
-    }
-
     public function test_dynamic_flags_and_operational_issue_observations_follow_available_data(): void
     {
         $this->createOperation($this->kbb, '2026-07-18', [
@@ -380,7 +356,6 @@ class ManagementMonthlyReportTest extends TestCase
         $dataset = $this->service->generate($this->admin, 2026, 7, $this->kbb->id);
 
         $this->assertFalse($dataset['flags']['showMillComparison']);
-        $this->assertFalse($dataset['flags']['showMpobSection']);
         $this->assertTrue($dataset['flags']['hasOperationalIssues']);
         $this->assertTrue($dataset['flags']['hasProductionData']);
         $this->assertTrue($dataset['flags']['hasDowntimeData']);

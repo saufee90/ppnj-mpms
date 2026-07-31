@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\DailyOperation;
 use App\Models\Mill;
-use App\Models\MpobPriceHistory;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -54,7 +53,6 @@ class ManagementMonthlyReportService
                 'kpi' => $report['kpi'],
             ])->values()->all()
             : [];
-        $mpob = $this->buildMpobContext($year, $month);
         $highlights = $this->buildHighlights($millReports);
         $hasKpiTargets = $millReports->contains(
             fn (array $report) => collect($report['kpi'])->contains(
@@ -84,11 +82,9 @@ class ManagementMonthlyReportService
             'overall' => $overall,
             'mills' => $millReports->all(),
             'comparison' => $comparison,
-            'mpob' => $mpob,
             'highlights' => $highlights,
             'flags' => [
                 'showMillComparison' => $showMillComparison,
-                'showMpobSection' => $mpob['available'],
                 'hasKpiTargets' => $hasKpiTargets,
                 'hasOperationalIssues' => $millReports->contains(
                     fn (array $report) => ! empty($report['operationalIssues'])
@@ -395,48 +391,6 @@ class ManagementMonthlyReportService
             ])
             ->values()
             ->all();
-    }
-
-    private function buildMpobContext(int $year, int $month): array
-    {
-        $rows = MpobPriceHistory::query()
-            ->whereYear('trade_date', $year)
-            ->whereMonth('trade_date', $month)
-            ->where('price', '>', 0)
-            ->orderBy('trade_date')
-            ->get();
-        $products = [];
-
-        foreach (['cpo', 'pk', 'cpko'] as $category) {
-            $categoryRows = $rows->where('category', $category)->values();
-            if ($categoryRows->isEmpty()) {
-                $products[$category] = ['available' => false, 'trend' => []];
-                continue;
-            }
-
-            $opening = (float) $categoryRows->first()->price;
-            $closing = (float) $categoryRows->last()->price;
-            $change = round($closing - $opening, 2);
-            $products[$category] = [
-                'available' => true,
-                'opening_price' => round($opening, 2),
-                'closing_price' => round($closing, 2),
-                'highest_price' => round((float) $categoryRows->max('price'), 2),
-                'lowest_price' => round((float) $categoryRows->min('price'), 2),
-                'average_price' => round((float) $categoryRows->avg('price'), 2),
-                'change_rm' => $change,
-                'change_percentage' => $opening > 0 ? round(($change / $opening) * 100, 2) : null,
-                'trend' => $categoryRows->map(fn ($row) => [
-                    'date' => $row->trade_date->toDateString(),
-                    'price' => round((float) $row->price, 2),
-                ])->all(),
-            ];
-        }
-
-        return [
-            'available' => collect($products)->contains(fn (array $product) => $product['available']),
-            'products' => $products,
-        ];
     }
 
     private function buildHighlights(Collection $millReports): array

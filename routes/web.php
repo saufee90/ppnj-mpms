@@ -57,6 +57,8 @@ Route::middleware(['system.maintenance', 'auth'])->group(function () {
 
     Route::get('/laporan-prestasi-bulanan', [ManagementMonthlyReportController::class, 'index'])
         ->name('laporan-pengurusan-bulanan.index');
+    Route::get('/laporan-prestasi-bulanan/pdf', [ManagementMonthlyReportController::class, 'downloadPdf'])
+        ->name('laporan-pengurusan-bulanan.pdf');
 
     /*
     |--------------------------------------------------------------------------
