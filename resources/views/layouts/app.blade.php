@@ -104,6 +104,7 @@
                 <a href="{{ route('analisis.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('analisis.*') ? 'active' : '' }}">📈 Analisis Prestasi</a>
                 <a href="{{ route('perbandingan.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('perbandingan.*') ? 'active' : '' }}">⚖️ Perbandingan Kilang</a>
                 <a href="{{ route('laporan.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('laporan.*') ? 'active' : '' }}">🧾 Laporan</a>
+                <a href="{{ route('laporan-pengurusan-bulanan.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('laporan-pengurusan-bulanan.*') ? 'active' : '' }}">📑 Prestasi Bulanan</a>
 
                 @if(auth()->user()->isAdmin())
                 <div class="mt-3 pt-3 border-t border-white/10">

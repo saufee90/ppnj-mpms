@@ -6,6 +6,7 @@ use App\Http\Controllers\DailyOperationController;
 use App\Http\Controllers\PerformanceAnalysisController;
 use App\Http\Controllers\MillComparisonController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ManagementMonthlyReportController;
 use App\Http\Controllers\KpiTargetController;
 use App\Http\Controllers\SystemMaintenanceController;
 use App\Http\Controllers\UserManagementController;
@@ -53,6 +54,9 @@ Route::middleware(['system.maintenance', 'auth'])->group(function () {
         Route::get('/export-pdf', [ReportController::class, 'exportPdf'])->name('export.pdf');
         Route::get('/export-excel', [ReportController::class, 'exportExcel'])->name('export.excel');
     });
+
+    Route::get('/laporan-prestasi-bulanan', [ManagementMonthlyReportController::class, 'index'])
+        ->name('laporan-pengurusan-bulanan.index');
 
     /*
     |--------------------------------------------------------------------------

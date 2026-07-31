@@ -238,6 +238,59 @@ class KpiEvaluationService
         return round(($downtimeHours / $operatingHours) * 100, 2);
     }
 
+    public function calculateProductionRateFromRows(iterable $rows, string $productionField): ?float
+    {
+        $totalProduction = 0.0;
+        $totalProcessedBts = 0.0;
+
+        foreach ($rows as $row) {
+            $processedBts = (float) ($row->bts_diproses ?? 0);
+            if ($processedBts <= 0) {
+                continue;
+            }
+
+            $totalProduction += (float) ($row->{$productionField} ?? 0);
+            $totalProcessedBts += $processedBts;
+        }
+
+        return $totalProcessedBts > 0
+            ? round(($totalProduction / $totalProcessedBts) * 100, 2)
+            : null;
+    }
+
+    public function calculateSalesToProductionPercentageFromRows(
+        iterable $rows,
+        string $salesField,
+        string $productionField
+    ): ?float {
+        $totalSales = 0.0;
+        $totalProduction = 0.0;
+
+        foreach ($rows as $row) {
+            $totalSales += (float) ($row->{$salesField} ?? 0);
+            $totalProduction += (float) ($row->{$productionField} ?? 0);
+        }
+
+        return $totalProduction > 0
+            ? round(($totalSales / $totalProduction) * 100, 2)
+            : null;
+    }
+
+    public function calculateThroughputFromRows(iterable $rows): ?float
+    {
+        $totalProcessedBts = 0.0;
+        $totalOperatingHours = 0.0;
+
+        foreach ($rows as $row) {
+            $totalProcessedBts += (float) ($row->bts_diproses ?? 0);
+            $totalOperatingHours += (float) ($row->jam_operasi ?? 0);
+        }
+
+        return $totalOperatingHours > 0
+            ? round($totalProcessedBts / $totalOperatingHours, 2)
+            : null;
+    }
+
     public function calculateDowntimePercentageFromRows(iterable $rows): ?float
     {
         $totalDowntimeHours = 0.0;
@@ -637,6 +690,7 @@ class KpiEvaluationService
             'achievement_percentage' => $achievementPercentage,
             'expected_target_to_date' => $expectedTargetToDate,
             'evaluation_value' => $evaluationValue,
+            'variance' => round($evaluationValue - (float) $green, 2),
             'message' => $message,
             'explanation' => $message,
         ];
@@ -694,6 +748,7 @@ class KpiEvaluationService
             'achievement_percentage' => null,
             'expected_target_to_date' => null,
             'evaluation_value' => null,
+            'variance' => null,
             'message' => $message,
             'explanation' => $message,
         ], $extra);
