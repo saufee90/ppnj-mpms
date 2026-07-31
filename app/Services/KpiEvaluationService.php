@@ -281,6 +281,7 @@ class KpiEvaluationService
                     'actual_percentage' => null,
                     'actual_downtime_hours' => round($downtimeHours, 2),
                     'actual_operating_hours' => round($operatingHours, 2),
+                    'variance' => null,
                 ]
             );
         }
@@ -300,6 +301,9 @@ class KpiEvaluationService
             'actual_percentage' => $downtimePercentage,
             'actual_downtime_hours' => round($downtimeHours, 2),
             'actual_operating_hours' => round($operatingHours, 2),
+            'variance' => isset($result['green_threshold'])
+                ? round($downtimePercentage - (float) $result['green_threshold'], 2)
+                : null,
         ]);
     }
 

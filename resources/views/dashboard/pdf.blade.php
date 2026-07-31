@@ -166,6 +166,24 @@
             font-variant-numeric: tabular-nums;
         }
 
+        .metrics .kpi-heading th {
+            width: auto;
+            padding-top: 5px;
+            background-color: #e5e7eb;
+            color: #0B5D32;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+        }
+
+        .kpi-status {
+            display: inline-block;
+            padding: 1px 6px;
+            border: 1px solid currentColor;
+            border-radius: 999px;
+            font-size: 8px;
+            font-weight: bold;
+        }
+
         .mtd-table {
             width: 100%;
             border-collapse: collapse;
@@ -254,6 +272,16 @@
         <table class="two-col">
             <tr>
                 @foreach($millSummaries as $summary)
+                    @php
+                        $btsKpi = $summary['kpi']['bts'] ?? [];
+                        $downtimeKpi = $summary['kpi']['downtime'] ?? [];
+                        $btsStatusLabel = ($btsKpi['status_label'] ?? 'Belum Ditetapkan') === 'Belum Ditetapkan'
+                            ? 'KPI Belum Ditetapkan'
+                            : ($btsKpi['status_label'] ?? 'Belum Ditetapkan');
+                        $downtimeStatusLabel = ($downtimeKpi['status_label'] ?? 'Belum Ditetapkan') === 'Belum Ditetapkan'
+                            ? 'KPI Belum Ditetapkan'
+                            : ($downtimeKpi['status_label'] ?? 'Belum Ditetapkan');
+                    @endphp
                     <td>
                         <div class="mill-card">
                             <h4>{{ $summary['name'] }}</h4>
@@ -275,6 +303,27 @@
                                 <tr><th>Throughput</th><td class="value">{{ number_format($summary['throughput'] ?? 0, 2) }}</td></tr>
                                 <tr><th>Downtime</th><td class="value">{{ number_format($summary['downtime'] ?? 0, 2) }}</td></tr>
                                 <tr><th>Baki BTS selepas diproses</th><td class="value">{{ number_format($summary['baki_bts_selepas_diproses'] ?? 0, 2) }}</td></tr>
+                                <tr class="kpi-heading"><th colspan="2">Ringkasan KPI Harian</th></tr>
+                                <tr><th colspan="2">Penerimaan &amp; Pemprosesan BTS</th></tr>
+                                <tr><th>BTS diterima actual</th><td class="value">{{ number_format((float) ($btsKpi['actual_bts_diterima'] ?? 0), 2) }} MT</td></tr>
+                                <tr><th>BTS diproses actual</th><td class="value">{{ number_format((float) ($btsKpi['actual_bts_diproses'] ?? 0), 2) }} MT</td></tr>
+                                <tr><th>Sasaran KPI yang sama</th><td class="value">{{ ($btsKpi['target'] ?? null) !== null ? number_format((float) $btsKpi['target'], 2) . ' MT' : 'KPI Belum Ditetapkan' }}</td></tr>
+                                <tr><th>Variance diterima</th><td class="value">{{ ($btsKpi['variance_bts_diterima'] ?? null) !== null ? number_format((float) $btsKpi['variance_bts_diterima'], 2) . ' MT' : '-' }}</td></tr>
+                                <tr><th>Variance diproses</th><td class="value">{{ ($btsKpi['variance_bts_diproses'] ?? null) !== null ? number_format((float) $btsKpi['variance_bts_diproses'], 2) . ' MT' : '-' }}</td></tr>
+                                <tr>
+                                    <th>Status keseluruhan</th>
+                                    <td class="value"><span class="kpi-status" style="color: {{ $btsKpi['colour'] ?? '#9CA3AF' }};">{{ $btsStatusLabel }}</span></td>
+                                </tr>
+                                <tr><th colspan="2">Downtime (%)</th></tr>
+                                <tr><th>Jam downtime sebenar</th><td class="value">{{ number_format((float) ($downtimeKpi['actual_downtime_hours'] ?? 0), 2) }} jam</td></tr>
+                                <tr><th>Jam proses</th><td class="value">{{ number_format((float) ($downtimeKpi['actual_operating_hours'] ?? 0), 2) }} jam</td></tr>
+                                <tr><th>Downtime actual</th><td class="value">{{ ($downtimeKpi['actual_percentage'] ?? null) !== null ? number_format((float) $downtimeKpi['actual_percentage'], 2) . '%' : 'Tidak Berkenaan' }}</td></tr>
+                                <tr><th>Sasaran KPI</th><td class="value">{{ ($downtimeKpi['green_threshold'] ?? null) !== null ? number_format((float) $downtimeKpi['green_threshold'], 2) . '%' : 'KPI Belum Ditetapkan' }}</td></tr>
+                                <tr><th>Variance</th><td class="value">{{ ($downtimeKpi['variance'] ?? null) !== null ? number_format((float) $downtimeKpi['variance'], 2) . '%' : '-' }}</td></tr>
+                                <tr>
+                                    <th>Status KPI</th>
+                                    <td class="value"><span class="kpi-status" style="color: {{ $downtimeKpi['colour'] ?? '#9CA3AF' }};">{{ $downtimeStatusLabel }}</span></td>
+                                </tr>
                             </table>
                         </div>
                     </td>

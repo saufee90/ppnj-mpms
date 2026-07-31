@@ -373,7 +373,7 @@
         <canvas id="chartKer"></canvas>
     </div>
     <div class="bg-white rounded-xl shadow-sm p-4">
-        <p class="text-sm font-semibold text-gray-600 mb-3">Trend Downtime (Bulan Semasa)</p>
+        <p class="text-sm font-semibold text-gray-600 mb-3">Trend Downtime (%) (Bulan Semasa)</p>
         <canvas id="chartDowntime"></canvas>
     </div>
 </div>
@@ -407,7 +407,7 @@ new Chart(document.getElementById('chartKer'), {
 
 new Chart(document.getElementById('chartDowntime'), {
     type: 'line',
-    data: { labels, datasets: [{ label: 'Downtime (jam)', data: @json($downtimeTrend), borderColor: '#DC2626', backgroundColor: '#DC262620', fill: true, tension: 0.3 }] },
+    data: { labels, datasets: [{ label: 'Downtime (%)', data: @json($downtimeTrend), borderColor: '#DC2626', backgroundColor: '#DC262620', fill: true, tension: 0.3 }] },
     options: { responsive: true }
 });
 

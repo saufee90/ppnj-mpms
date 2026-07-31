@@ -8,6 +8,10 @@ use Carbon\Carbon;
 
 class DashboardPdfService
 {
+    public function __construct(private readonly KpiEvaluationService $kpiEvaluationService)
+    {
+    }
+
     public function generate(?Carbon $displayDate = null): array
     {
         $displayDate ??= Carbon::yesterday();
@@ -33,9 +37,28 @@ class DashboardPdfService
             $mtdOperatedDays = (clone $mtdQuery)->operated()->count();
 
             $dailyBtsDiproses = (float) $dailyRows->sum('bts_diproses');
+            $dailyBtsDiterima = (float) $dailyRows->sum('bts_diterima');
             $mtdBtsDiproses = (float) $mtdRows->sum('bts_diproses');
             $mtdProduksiCpo = (float) $mtdRows->sum('produksi_cpo');
             $mtdProduksiPk = (float) $mtdRows->sum('produksi_pk');
+            $hasDailyData = $dailyRows->isNotEmpty();
+            $btsKpi = $this->kpiEvaluationService->evaluateBtsCombined(
+                $dailyBtsDiterima,
+                $dailyBtsDiproses,
+                $mill->id,
+                (int) $displayDate->year,
+                (int) $displayDate->month,
+                $hasDailyData,
+                $displayDate->toDateString()
+            );
+            $downtimeKpi = $this->kpiEvaluationService->evaluateDowntimeFromRows(
+                $dailyRows,
+                $mill->id,
+                (int) $displayDate->year,
+                (int) $displayDate->month,
+                $hasDailyData,
+                $displayDate->toDateString()
+            );
 
             return [
                 'mill_id' => $mill->id,
@@ -46,7 +69,7 @@ class DashboardPdfService
                     ? $latestDailyRecord->tarikh->translatedFormat('d F Y')
                     : 'Tiada Data',
 
-                'bts_diterima' => (float) $dailyRows->sum('bts_diterima'),
+                'bts_diterima' => $dailyBtsDiterima,
                 'bts_diproses' => $dailyBtsDiproses,
                 'pengeluaran_cpo' => (float) $dailyRows->sum('produksi_cpo'),
                 'jualan_cpo' => (float) $dailyRows->sum('pengeluaran_cpo'),
@@ -58,7 +81,12 @@ class DashboardPdfService
                 'ker' => $this->computeRateFromRows($dailyRows, 'produksi_pk'),
                 'throughput' => $this->computeThroughputFromRows($dailyRows),
                 'downtime' => (float) $dailyRows->sum('downtime_jam'),
+                'jam_operasi' => (float) $dailyRows->sum('jam_operasi'),
                 'baki_bts_selepas_diproses' => (float) ($latestDailyRecord?->baki_bts_selepas_diproses ?? 0),
+                'kpi' => [
+                    'bts' => $btsKpi,
+                    'downtime' => $downtimeKpi,
+                ],
 
                 'mtd' => [
                     'bts_diterima' => (float) $mtdRows->sum('bts_diterima'),
