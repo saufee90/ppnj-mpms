@@ -25,7 +25,9 @@ class CheckSystemMaintenance
             return $next($request);
         }
 
-        if ($request->routeIs('login') && $request->isMethod('get')) {
+        // Benarkan alamat utama redirect ke login serta benarkan
+        // paparan dan proses login semasa maintenance.
+        if ($request->is('/') || $request->routeIs('login', 'login.attempt')) {
             return $next($request);
         }
 
@@ -55,7 +57,7 @@ class CheckSystemMaintenance
         }
 
         return collect(preg_split('/\r\n|\r|\n/', $notes) ?: [])
-            ->map(fn (string $line) => trim($line))
+            ->map(fn(string $line) => trim($line))
             ->filter()
             ->values()
             ->all();
