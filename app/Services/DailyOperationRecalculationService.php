@@ -203,7 +203,10 @@ class DailyOperationRecalculationService
             $row->jam_operasi = 0.0;
             $row->downtime_jam = 0.0;
 
-            $row->baki_bts_selepas_diproses = $previousBakiBts;
+            $row->baki_bts_selepas_diproses = round(
+                $previousBakiBts + (float) ($row->bts_diterima ?? 0),
+                2
+            );
             $row->stok_cpo = $previousStokCpo;
             $row->stok_pk = $previousStokPk;
 
@@ -331,8 +334,12 @@ class DailyOperationRecalculationService
         $data['moisture'] = 0.0;
         $data['dirt'] = 0.0;
 
-        // Pada tidak operasi, baki/stok semasa mesti bawa terus nilai semalam.
-        $data['baki_bts_selepas_diproses'] = round((float) ($data['baki_bts_semalam'] ?? 0), 2);
+        // Pada tidak operasi, BTS diterima ditambah tetapi stok produk kekal.
+        $data['baki_bts_selepas_diproses'] = round(
+            (float) ($data['baki_bts_semalam'] ?? 0)
+                + (float) ($data['bts_diterima'] ?? 0),
+            2
+        );
         $data['stok_cpo'] = round((float) ($data['stok_cpo_yesterday'] ?? 0), 2);
         $data['stok_pk'] = round((float) ($data['stok_pk_yesterday'] ?? 0), 2);
 
