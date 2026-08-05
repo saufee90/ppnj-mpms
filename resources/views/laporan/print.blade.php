@@ -90,8 +90,8 @@
                 <td>{{ number_format($records->sum('pengeluaran_pk'),2) }}</td>
                 <td>{{ number_format($records->sum('produksi_cpo'),2) }}</td>
                 <td>{{ number_format($records->sum('produksi_pk'),2) }}</td>
-                <td>{{ number_format($records->sum('stok_cpo_yesterday'),2) }}</td>
-                <td>{{ number_format($records->sum('stok_pk_yesterday'),2) }}</td>
+                <td><small>{{ $closingStockLabel }}</small><br>{{ number_format($closingCpoStock,2) }}</td>
+                <td><small>{{ $closingStockLabel }}</small><br>{{ number_format($closingPkStock,2) }}</td>
                 <td>{{ number_format($summaryOer,2) }}</td>
                 <td>{{ number_format($summaryKer,2) }}</td>
                 <td>{{ number_format($records->sum('downtime_jam'),2) }}</td>

@@ -15,8 +15,10 @@ class ReportController extends Controller
     {
         $mills = Mill::where('is_active', true)->get();
         $query = $this->filteredQuery($request);
-        $records = (clone $query)->with('mill')->orderBy('tarikh')->get();
+        $records = (clone $query)->with('mill')->orderBy('tarikh')->orderBy('id')->get();
         $reportPeriodTitle = $this->resolveReportPeriodTitle($request);
+        [$closingCpoStock, $closingPkStock] = $this->resolveClosingStocks($records);
+        $closingStockLabel = $this->resolveClosingStockLabel($request);
         $summaryBtsDiproses = (float) $records->sum('bts_diproses');
         $summaryOer = $this->computeRate((float) $records->sum('produksi_cpo'), $summaryBtsDiproses);
         $summaryKer = $this->computeRate((float) $records->sum('produksi_pk'), $summaryBtsDiproses);
@@ -24,7 +26,7 @@ class ReportController extends Controller
         $operatedDays = (clone $query)->operated()->count();
         $referenceDays = $this->resolveReportReferenceDays($request);
 
-        return view('laporan.index', compact('mills', 'records', 'operatedDays', 'referenceDays', 'summaryOer', 'summaryKer', 'reportPeriodTitle'));
+        return view('laporan.index', compact('mills', 'records', 'operatedDays', 'referenceDays', 'summaryOer', 'summaryKer', 'reportPeriodTitle', 'closingCpoStock', 'closingPkStock', 'closingStockLabel'));
     }
 
     /**
@@ -33,7 +35,7 @@ class ReportController extends Controller
      */
     public function exportExcel(Request $request): StreamedResponse
     {
-        $records = $this->filteredQuery($request)->with('mill')->orderBy('tarikh')->get();
+        $records = $this->filteredQuery($request)->with('mill')->orderBy('tarikh')->orderBy('id')->get();
 
         AuditLog::record('export_excel');
 
@@ -67,9 +69,11 @@ class ReportController extends Controller
     public function exportPdf(Request $request)
     {
         $query = $this->filteredQuery($request);
-        $records = (clone $query)->with('mill')->orderBy('tarikh')->get();
+        $records = (clone $query)->with('mill')->orderBy('tarikh')->orderBy('id')->get();
         $reportMillName = $this->resolveReportMillName($request, $records);
         $reportPeriodTitle = $this->resolveReportPeriodTitle($request);
+        [$closingCpoStock, $closingPkStock] = $this->resolveClosingStocks($records);
+        $closingStockLabel = $this->resolveClosingStockLabel($request);
         $summaryBtsDiproses = (float) $records->sum('bts_diproses');
         $summaryOer = $this->computeRate((float) $records->sum('produksi_cpo'), $summaryBtsDiproses);
         $summaryKer = $this->computeRate((float) $records->sum('produksi_pk'), $summaryBtsDiproses);
@@ -78,7 +82,7 @@ class ReportController extends Controller
 
         AuditLog::record('export_pdf');
 
-        return view('laporan.print', compact('records', 'operatedDays', 'referenceDays', 'summaryOer', 'summaryKer', 'reportMillName', 'reportPeriodTitle'));
+        return view('laporan.print', compact('records', 'operatedDays', 'referenceDays', 'summaryOer', 'summaryKer', 'reportMillName', 'reportPeriodTitle', 'closingCpoStock', 'closingPkStock', 'closingStockLabel'));
     }
 
     private function filteredQuery(Request $request)
@@ -93,10 +97,10 @@ class ReportController extends Controller
         }
 
         if ($request->filled('tarikh_mula')) {
-            $query->where('tarikh', '>=', $request->input('tarikh_mula'));
+            $query->whereDate('tarikh', '>=', $request->input('tarikh_mula'));
         }
         if ($request->filled('tarikh_akhir')) {
-            $query->where('tarikh', '<=', $request->input('tarikh_akhir'));
+            $query->whereDate('tarikh', '<=', $request->input('tarikh_akhir'));
         }
         if ($request->filled('bulan')) {
             $query->whereMonth('tarikh', $request->input('bulan'));
@@ -138,6 +142,48 @@ class ReportController extends Controller
         }
 
         return round(($production / $btsDiproses) * 100, 2);
+    }
+
+    private function resolveClosingStocks($records): array
+    {
+        $closingCpoStock = 0.0;
+        $closingPkStock = 0.0;
+
+        foreach ($records->groupBy('mill_id') as $millRecords) {
+            $lastRecord = $millRecords
+                ->sortBy([
+                    ['tarikh', 'asc'],
+                    ['id', 'asc'],
+                ])
+                ->last();
+
+            $closingCpoStock += (float) ($lastRecord?->stok_cpo ?? 0);
+            $closingPkStock += (float) ($lastRecord?->stok_pk ?? 0);
+        }
+
+        return [
+            $closingCpoStock,
+            $closingPkStock,
+        ];
+    }
+
+    private function resolveClosingStockLabel(Request $request): string
+    {
+        if ($request->filled('tarikh_mula') && $request->filled('tarikh_akhir')) {
+            $startDate = Carbon::parse($request->input('tarikh_mula'))->startOfDay();
+            $endDate = Carbon::parse($request->input('tarikh_akhir'))->startOfDay();
+            $isFullMonth = $startDate->isSameMonth($endDate)
+                && $startDate->isSameDay($startDate->copy()->startOfMonth())
+                && $endDate->isSameDay($endDate->copy()->endOfMonth()->startOfDay());
+
+            return $isFullMonth ? 'Stok Akhir Bulan' : 'Stok Akhir Tempoh';
+        }
+
+        if ($request->filled('bulan')) {
+            return 'Stok Akhir Bulan';
+        }
+
+        return 'Stok Akhir Tempoh';
     }
 
     private function resolveReportMillName(Request $request, $records): string

@@ -81,8 +81,14 @@
                 <td class="px-4 py-3 text-right">{{ number_format($records->sum('pengeluaran_pk'),2) }}</td>
                 <td class="px-4 py-3 text-right">{{ number_format($records->sum('produksi_cpo'),2) }}</td>
                 <td class="px-4 py-3 text-right">{{ number_format($records->sum('produksi_pk'),2) }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($records->sum('stok_cpo_yesterday'),2) }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($records->sum('stok_pk_yesterday'),2) }}</td>
+                <td class="px-4 py-3 text-right" title="{{ $closingStockLabel }}">
+                    <span class="block text-[10px] font-normal text-gray-500">{{ $closingStockLabel }}</span>
+                    {{ number_format($closingCpoStock,2) }}
+                </td>
+                <td class="px-4 py-3 text-right" title="{{ $closingStockLabel }}">
+                    <span class="block text-[10px] font-normal text-gray-500">{{ $closingStockLabel }}</span>
+                    {{ number_format($closingPkStock,2) }}
+                </td>
                 <td class="px-4 py-3 text-right">{{ number_format($summaryOer,2) }}</td>
                 <td class="px-4 py-3 text-right">{{ number_format($summaryKer,2) }}</td>
                 <td class="px-4 py-3 text-right">{{ number_format($records->sum('downtime_jam'),2) }}</td>
