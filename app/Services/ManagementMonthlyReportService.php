@@ -226,6 +226,9 @@ class ManagementMonthlyReportService
             'ker' => $this->kpiEvaluationService->evaluate(
                 'ker', $metrics['ker'], $millId, $year, $month, $hasData, $asOfDate
             ),
+            'throughput' => $this->kpiEvaluationService->evaluate(
+                'throughput', $metrics['throughput'], $millId, $year, $month, $hasData, $asOfDate
+            ),
             'downtime' => $this->kpiEvaluationService->evaluateDowntimeFromRows(
                 $rows, $millId, $year, $month, $hasData, $asOfDate
             ),
@@ -289,7 +292,7 @@ class ManagementMonthlyReportService
             ['code' => 'pengeluaran_cpo', 'label' => 'Pengeluaran CPO', 'actual' => $metrics['pengeluaran_cpo'], 'unit' => 'MT', 'kpi' => $kpi['pengeluaran_cpo']],
             ['code' => 'oer', 'label' => 'OER', 'actual' => $metrics['oer'], 'unit' => '%', 'kpi' => $kpi['oer']],
             ['code' => 'ker', 'label' => 'KER', 'actual' => $metrics['ker'], 'unit' => '%', 'kpi' => $kpi['ker']],
-            ['code' => 'throughput', 'label' => 'Throughput', 'actual' => $metrics['throughput'], 'unit' => 'MT/Jam', 'kpi' => null],
+            ['code' => 'throughput', 'label' => 'Throughput', 'actual' => $metrics['throughput'], 'unit' => 'MT/Jam', 'kpi' => $kpi['throughput']],
             ['code' => 'downtime', 'label' => 'Downtime', 'actual' => $metrics['downtime_percentage'], 'unit' => '%', 'kpi' => $kpi['downtime']],
         ];
     }

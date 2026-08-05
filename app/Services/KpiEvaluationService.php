@@ -50,6 +50,15 @@ class KpiEvaluationService
                 'supports_monthly_target' => false,
             ],
             [
+                'code' => 'throughput',
+                'name' => 'Throughput',
+                'unit' => 'MT/Jam',
+                'direction' => 'higher_is_better',
+                'evaluation_basis' => 'direct_value',
+                'section' => 'Prestasi Pengeluaran',
+                'supports_monthly_target' => false,
+            ],
+            [
                 'code' => 'pengeluaran_cpo',
                 'name' => 'Pengeluaran CPO',
                 'unit' => 'MT',

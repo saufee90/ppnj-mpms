@@ -8,6 +8,7 @@ use App\Models\Mill;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\KpiEvaluationService;
+use App\Services\ManagementMonthlyReportPresentationService;
 use App\Services\ManagementMonthlyReportService;
 use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
@@ -174,7 +175,9 @@ class ManagementMonthlyReportTest extends TestCase
 
         $report = $this->service->generate($this->admin, 2026, 7, $this->kbb->id)['mills'][0];
 
-        $this->assertCount(12, $report['kpi']);
+        $this->assertCount(13, $report['kpi']);
+        $this->assertSame(25.0, $report['kpi']['throughput']['actual']);
+        $this->assertSame('MT/Jam', $report['kpi']['throughput']['unit']);
         $this->assertSame(300.0, $report['kpi']['pengeluaran_cpo']['actual']);
         $this->assertSame(80.0, $report['kpi']['pengeluaran_pk']['actual']);
         $this->assertSame(300.0, $report['kpi']['jualan_cpo']['actual']);
@@ -198,6 +201,72 @@ class ManagementMonthlyReportTest extends TestCase
 
         $this->assertSame('grey', $result['status']);
         $this->assertSame('Belum Ditetapkan', $result['status_label']);
+    }
+
+    public function test_throughput_target_variance_status_and_summary_follow_official_kpi_setting(): void
+    {
+        $this->createOperation($this->kbb, '2026-07-01', [
+            'bts_diproses' => 100,
+            'jam_operasi' => 1,
+            'throughput' => 100,
+        ]);
+        $this->createOperation($this->kbb, '2026-07-31', [
+            'bts_diproses' => 900,
+            'jam_operasi' => 99,
+            'throughput' => 9.09,
+        ]);
+
+        $datasetWithoutSetting = $this->service->generate($this->admin, 2026, 7, $this->kbb->id);
+        $presentationWithoutSetting = app(ManagementMonthlyReportPresentationService::class)
+            ->prepare($datasetWithoutSetting);
+        $throughputWithoutSetting = $datasetWithoutSetting['mills'][0]['kpi']['throughput'];
+
+        $this->assertSame(10.0, $throughputWithoutSetting['actual']);
+        $this->assertSame('grey', $throughputWithoutSetting['status']);
+        $this->assertSame(13, $presentationWithoutSetting['status_counts']['grey']);
+        $this->assertSame(0, $presentationWithoutSetting['status_counts']['green']);
+        $this->assertSame(0, $presentationWithoutSetting['status_counts']['red']);
+
+        $this->createDirectSetting($this->kbb, 'throughput', 9.0, 7.0);
+
+        $datasetWithSetting = $this->service->generate($this->admin, 2026, 7, $this->kbb->id);
+        $presentationWithSetting = app(ManagementMonthlyReportPresentationService::class)
+            ->prepare($datasetWithSetting);
+        $throughput = $datasetWithSetting['mills'][0]['kpi']['throughput'];
+        $card = collect($datasetWithSetting['mills'][0]['executiveCards'])->firstWhere('code', 'throughput');
+
+        $this->assertSame(10.0, $throughput['actual']);
+        $this->assertSame(9.0, $throughput['green_threshold']);
+        $this->assertSame(1.0, $throughput['variance']);
+        $this->assertSame('green', $throughput['status']);
+        $this->assertSame($throughput, $card['kpi']);
+        $this->assertSame(12, $presentationWithSetting['status_counts']['grey']);
+        $this->assertSame(1, $presentationWithSetting['status_counts']['green']);
+
+        $scorecard = collect($presentationWithSetting['mill_scorecards'][0]['items'])
+            ->firstWhere('code', 'throughput');
+        $this->assertSame(10.0, $scorecard['actuals'][0]['value']);
+        $this->assertSame(9.0, $scorecard['target']);
+        $this->assertSame(1.0, $scorecard['variances'][0]['value']);
+        $this->assertSame('green', $scorecard['status']);
+    }
+
+    public function test_zero_operating_hours_makes_throughput_not_applicable_without_inf_or_nan(): void
+    {
+        $this->createOperation($this->kbb, '2026-07-31', [
+            'bts_diproses' => 500,
+            'jam_operasi' => 0,
+        ]);
+        $this->createDirectSetting($this->kbb, 'throughput', 25.0, 20.0);
+
+        $dataset = $this->service->generate($this->admin, 2026, 7, $this->kbb->id);
+        $throughput = $dataset['mills'][0]['kpi']['throughput'];
+
+        $this->assertNull($dataset['overall']['metrics']['throughput']);
+        $this->assertNull($throughput['actual']);
+        $this->assertSame('grey', $throughput['status']);
+        $this->assertSame('Tiada Data', $throughput['status_label']);
+        $this->assertIsString(json_encode($dataset, JSON_THROW_ON_ERROR));
     }
 
     public function test_completed_month_uses_month_end_for_monthly_flow_evaluation(): void

@@ -136,6 +136,66 @@ class KpiTargetControllerTest extends TestCase
         $this->assertStringNotContainsString('Downtime (Jam)', $html);
     }
 
+    public function test_throughput_is_a_valid_production_indicator_rendered_after_ker(): void
+    {
+        $admin = $this->createUserWithRole('admin');
+        $catalog = collect(KpiEvaluationService::indicatorCatalog());
+        $productionCodes = $catalog
+            ->where('section', 'Prestasi Pengeluaran')
+            ->pluck('code')
+            ->values()
+            ->all();
+
+        $this->assertSame(
+            ['oer', 'ker', 'throughput', 'pengeluaran_cpo', 'pengeluaran_pk'],
+            array_slice($productionCodes, 0, 5)
+        );
+
+        $throughput = KpiEvaluationService::indicatorMap()['throughput'];
+        $this->assertSame('Throughput', $throughput['name']);
+        $this->assertSame('MT/Jam', $throughput['unit']);
+        $this->assertSame('higher_is_better', $throughput['direction']);
+        $this->assertSame('direct_value', $throughput['evaluation_basis']);
+
+        $response = $this->actingAs($admin)
+            ->get(route('kpi.index', ['scope' => (string) $this->kbbId, 'year' => 2026]))
+            ->assertOk()
+            ->assertSeeInOrder(['OER', 'KER', 'Throughput', 'Pengeluaran CPO', 'Pengeluaran PK']);
+
+        $html = $response->getContent();
+        $this->assertStringContainsString('name="settings[throughput][is_active]"', $html);
+        $this->assertStringContainsString('name="settings[throughput][green_threshold]"', $html);
+        $this->assertStringContainsString('name="settings[throughput][red_threshold]"', $html);
+        $this->assertStringContainsString('Lebih tinggi lebih baik', $html);
+    }
+
+    public function test_admin_can_save_independent_throughput_targets_for_each_mill(): void
+    {
+        $admin = $this->createUserWithRole('admin');
+        $kbbPayload = $this->basePayload([
+            'throughput' => ['green_threshold' => 28, 'red_threshold' => 24, 'is_active' => 1],
+        ]);
+        $kahangPayload = $this->basePayload([
+            'throughput' => ['green_threshold' => 52, 'red_threshold' => 46, 'is_active' => 1],
+        ]);
+        $kahangPayload['scope'] = (string) $this->kkhgId;
+
+        $this->actingAs($admin)->post(route('kpi.store'), $kbbPayload)->assertRedirect();
+        $this->actingAs($admin)->post(route('kpi.store'), $kahangPayload)->assertRedirect();
+
+        $kbb = KpiIndicatorSetting::where('indicator_code', 'throughput')
+            ->where('mill_id', $this->kbbId)
+            ->firstOrFail();
+        $kahang = KpiIndicatorSetting::where('indicator_code', 'throughput')
+            ->where('mill_id', $this->kkhgId)
+            ->firstOrFail();
+
+        $this->assertSame(28.0, (float) $kbb->green_threshold);
+        $this->assertSame(24.0, (float) $kbb->red_threshold);
+        $this->assertSame(52.0, (float) $kahang->green_threshold);
+        $this->assertSame(46.0, (float) $kahang->red_threshold);
+    }
+
     public function test_invalid_numeric_input_is_rejected_and_not_converted_to_null(): void
     {
         $admin = $this->createUserWithRole('admin');

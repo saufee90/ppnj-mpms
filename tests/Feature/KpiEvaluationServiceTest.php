@@ -211,6 +211,35 @@ class KpiEvaluationServiceTest extends TestCase
         $this->assertSame('green', $ker['status']);
     }
 
+    public function test_throughput_uses_direct_higher_is_better_evaluation(): void
+    {
+        $this->createDirectSetting('throughput', $this->kbb->id, 2026, 25.0, 20.0);
+
+        $green = $this->service->evaluate('throughput', 26.0, $this->kbb->id, 2026, 7, true);
+        $yellow = $this->service->evaluate('throughput', 22.0, $this->kbb->id, 2026, 7, true);
+        $red = $this->service->evaluate('throughput', 18.0, $this->kbb->id, 2026, 7, true);
+
+        $this->assertSame('MT/Jam', $green['unit']);
+        $this->assertSame('green', $green['status']);
+        $this->assertSame(1.0, (float) $green['variance']);
+        $this->assertSame('yellow', $yellow['status']);
+        $this->assertSame('red', $red['status']);
+    }
+
+    public function test_throughput_returns_null_for_zero_total_operating_hours(): void
+    {
+        $rows = collect([
+            (object) ['bts_diproses' => 100.0, 'jam_operasi' => 0.0],
+            (object) ['bts_diproses' => 200.0, 'jam_operasi' => 0.0],
+        ]);
+
+        $actual = $this->service->calculateThroughputFromRows($rows);
+
+        $this->assertNull($actual);
+        $this->assertFalse(is_infinite((float) $actual));
+        $this->assertFalse(is_nan((float) $actual));
+    }
+
     public function test_sales_vs_production_remains_percentage_based(): void
     {
         $this->createDirectSetting('jualan_cpo_vs_pengeluaran_cpo', $this->kbb->id, 2026, 100.0, 80.0);
