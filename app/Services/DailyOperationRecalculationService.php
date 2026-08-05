@@ -189,26 +189,26 @@ class DailyOperationRecalculationService
         }
 
         if (($row->operation_status ?? 'Operasi') !== 'Operasi') {
-            $previousBakiBts = $previousDay
-                ? round((float) ($previousDay->baki_bts_selepas_diproses ?? 0), 2)
-                : round((float) ($row->baki_bts_semalam ?? 0), 2);
-            $previousStokCpo = $previousDay
-                ? round((float) ($previousDay->stok_cpo ?? 0), 2)
-                : round((float) ($row->stok_cpo_yesterday ?? 0), 2);
-            $previousStokPk = $previousDay
-                ? round((float) ($previousDay->stok_pk ?? 0), 2)
-                : round((float) ($row->stok_pk_yesterday ?? 0), 2);
-
             $row->bts_diproses = 0.0;
             $row->jam_operasi = 0.0;
             $row->downtime_jam = 0.0;
 
             $row->baki_bts_selepas_diproses = round(
-                $previousBakiBts + (float) ($row->bts_diterima ?? 0),
+                (float) ($row->baki_bts_semalam ?? 0)
+                    + (float) ($row->bts_diterima ?? 0),
                 2
             );
-            $row->stok_cpo = $previousStokCpo;
-            $row->stok_pk = $previousStokPk;
+            $row->stok_cpo = $this->calculateClosingStockWithoutProduction(
+                (float) ($row->stok_cpo_yesterday ?? 0),
+                (float) ($row->pengeluaran_cpo ?? 0)
+            );
+            $row->stok_pk = $this->calculateClosingStockWithoutProduction(
+                (float) ($row->stok_pk_yesterday ?? 0),
+                (float) ($row->pengeluaran_pk ?? 0),
+                $this->isBukitBujangMillId((int) $row->mill_id)
+                    ? (float) ($row->pk_kcp_to_hopper ?? 0)
+                    : 0.0
+            );
 
             $row->produksi_cpo = 0.0;
             $row->produksi_pk = 0.0;
@@ -334,14 +334,24 @@ class DailyOperationRecalculationService
         $data['moisture'] = 0.0;
         $data['dirt'] = 0.0;
 
-        // Pada tidak operasi, BTS diterima ditambah tetapi stok produk kekal.
+        // Pada tidak operasi, tiada produksi tetapi penerimaan BTS, jualan produk
+        // dan penghantaran PK ke hopper masih mengubah baki/stok penutup.
         $data['baki_bts_selepas_diproses'] = round(
             (float) ($data['baki_bts_semalam'] ?? 0)
                 + (float) ($data['bts_diterima'] ?? 0),
             2
         );
-        $data['stok_cpo'] = round((float) ($data['stok_cpo_yesterday'] ?? 0), 2);
-        $data['stok_pk'] = round((float) ($data['stok_pk_yesterday'] ?? 0), 2);
+        $data['stok_cpo'] = $this->calculateClosingStockWithoutProduction(
+            (float) ($data['stok_cpo_yesterday'] ?? 0),
+            (float) ($data['pengeluaran_cpo'] ?? 0)
+        );
+        $data['stok_pk'] = $this->calculateClosingStockWithoutProduction(
+            (float) ($data['stok_pk_yesterday'] ?? 0),
+            (float) ($data['pengeluaran_pk'] ?? 0),
+            $this->isBukitBujangMillId((int) ($data['mill_id'] ?? 0))
+                ? (float) ($data['pk_kcp_to_hopper'] ?? 0)
+                : 0.0
+        );
 
         return $data;
     }
@@ -398,6 +408,14 @@ class DailyOperationRecalculationService
         }
 
         return round($stok - $yesterday + $sales, 2);
+    }
+
+    private function calculateClosingStockWithoutProduction(
+        float $openingStock,
+        float $sales,
+        float $hopper = 0.0
+    ): float {
+        return round($openingStock - $sales - $hopper, 2);
     }
 
     private function calculateOer(array $data): float

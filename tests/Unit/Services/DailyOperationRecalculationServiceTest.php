@@ -123,6 +123,107 @@ class DailyOperationRecalculationServiceTest extends TestCase
         $this->assertSame(218.0, (float) $day14->baki_bts_selepas_diproses);
     }
 
+    public function test_prepare_for_persistence_deducts_sales_and_hopper_on_receive_only_day(): void
+    {
+        $this->createOperation([
+            'tarikh' => '2026-07-12',
+            'baki_bts_selepas_diproses' => 325.8,
+            'stok_cpo' => 249.0,
+            'stok_pk' => 60.0,
+        ]);
+
+        $prepared = $this->service->prepareForPersistence($this->persistenceData([
+            'tarikh' => '2026-07-13',
+            'operation_status' => 'Tidak Operasi (Terima Buah Sahaja)',
+            'bts_diterima' => 183.99,
+            'pengeluaran_cpo' => 121.5,
+            'pengeluaran_pk' => 5.0,
+            'pk_kcp_to_hopper' => 3.0,
+        ]));
+
+        $this->assertSame(509.79, (float) $prepared['baki_bts_selepas_diproses']);
+        $this->assertSame(127.5, (float) $prepared['stok_cpo']);
+        $this->assertSame(52.0, (float) $prepared['stok_pk']);
+        $this->assertSame(0.0, (float) $prepared['produksi_cpo']);
+        $this->assertSame(0.0, (float) $prepared['produksi_pk']);
+        $this->assertSame(0.0, (float) $prepared['oer']);
+        $this->assertSame(0.0, (float) $prepared['ker']);
+    }
+
+    public function test_recalculation_carries_adjusted_stock_into_next_operating_day(): void
+    {
+        $this->createOperation([
+            'tarikh' => '2026-07-12',
+            'baki_bts_selepas_diproses' => 325.8,
+            'stok_cpo' => 249.0,
+            'stok_pk' => 60.0,
+        ]);
+
+        $day13 = $this->createOperation([
+            'tarikh' => '2026-07-13',
+            'operation_status' => 'Tidak Operasi (Terima Buah Sahaja)',
+            'bts_diterima' => 183.99,
+            'pengeluaran_cpo' => 121.5,
+            'pengeluaran_pk' => 5.0,
+            'pk_kcp_to_hopper' => 3.0,
+            'stok_cpo' => 249.0,
+            'stok_pk' => 60.0,
+        ]);
+        $day14 = $this->createOperation([
+            'tarikh' => '2026-07-14',
+            'bts_diterima' => 482.5,
+            'bts_diproses' => 774.29,
+            'stok_cpo' => 273.87,
+            'stok_pk' => 90.0,
+        ]);
+
+        $this->service->recalculateFromDate((int) $this->mill->id, Carbon::parse('2026-07-13'));
+
+        $day13->refresh();
+        $day14->refresh();
+
+        $this->assertSame(127.5, (float) $day13->stok_cpo);
+        $this->assertSame(52.0, (float) $day13->stok_pk);
+        $this->assertSame(127.5, (float) $day14->stok_cpo_yesterday);
+        $this->assertSame(52.0, (float) $day14->stok_pk_yesterday);
+        $this->assertSame(146.37, (float) $day14->produksi_cpo);
+        $this->assertSame(38.0, (float) $day14->produksi_pk);
+        $this->assertSame(18.9, (float) $day14->oer);
+        $this->assertSame(4.91, (float) $day14->ker);
+    }
+
+    public function test_recalculation_respects_manual_opening_stock_on_first_day_of_month(): void
+    {
+        $this->createOperation([
+            'tarikh' => '2026-06-30',
+            'baki_bts_selepas_diproses' => 75.0,
+            'stok_cpo' => 300.0,
+            'stok_pk' => 80.0,
+        ]);
+
+        $dayOne = $this->createOperation([
+            'tarikh' => '2026-07-01',
+            'operation_status' => 'Tidak Operasi (Terima Buah Sahaja)',
+            'bts_diterima' => 25.0,
+            'stok_cpo_yesterday' => 250.0,
+            'stok_pk_yesterday' => 60.0,
+            'pengeluaran_cpo' => 10.0,
+            'pengeluaran_pk' => 5.0,
+            'pk_kcp_to_hopper' => 2.0,
+        ]);
+
+        $this->service->recalculateFromDate((int) $this->mill->id, Carbon::parse('2026-07-01'));
+
+        $dayOne->refresh();
+
+        $this->assertSame(0.0, (float) $dayOne->baki_bts_semalam);
+        $this->assertSame(25.0, (float) $dayOne->baki_bts_selepas_diproses);
+        $this->assertSame(250.0, (float) $dayOne->stok_cpo_yesterday);
+        $this->assertSame(60.0, (float) $dayOne->stok_pk_yesterday);
+        $this->assertSame(240.0, (float) $dayOne->stok_cpo);
+        $this->assertSame(53.0, (float) $dayOne->stok_pk);
+    }
+
     public function test_prepare_for_persistence_keeps_hopper_in_pk_production_once(): void
     {
         $this->createOperation([
