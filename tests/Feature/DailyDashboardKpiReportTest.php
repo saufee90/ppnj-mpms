@@ -160,6 +160,103 @@ class DailyDashboardKpiReportTest extends TestCase
         $this->assertStringNotContainsString('<th>Downtime actual</th><td class="value">0.00%</td>', $html);
     }
 
+    public function test_bts_progress_prorates_early_mid_and_end_month_and_leap_february(): void
+    {
+        $service = app(KpiEvaluationService::class);
+        $this->createFlowSetting($this->kkhg, ['8' => ['green' => 3100, 'red' => 2500]]);
+        $this->createFlowSetting($this->kbb, ['2' => ['green' => 2900, 'red' => 2400]], 2028);
+
+        $early = $service->evaluateBtsProgress(95, $this->kkhg->id, '2026-08-01');
+        $mid = $service->evaluateBtsProgress(1425, $this->kkhg->id, '2026-08-15');
+        $end = $service->evaluateBtsProgress(2945, $this->kkhg->id, '2026-08-31');
+        $leap = $service->evaluateBtsProgress(2755, $this->kbb->id, '2028-02-29');
+
+        $this->assertSame(100.0, $early['prorated_target']);
+        $this->assertSame(1500.0, $mid['prorated_target']);
+        $this->assertSame(3100.0, $end['prorated_target']);
+        $this->assertSame(2900.0, $leap['prorated_target']);
+        $this->assertSame(29, $leap['elapsed_days']);
+        $this->assertSame(29, $leap['total_days']);
+    }
+
+    public function test_bts_progress_handles_status_boundaries_and_unavailable_targets(): void
+    {
+        $service = app(KpiEvaluationService::class);
+        $this->createFlowSetting($this->kkhg, ['8' => ['green' => 3100, 'red' => 2500]]);
+        $zeroTargetMill = $this->createMill('Kilang Sasaran Sifar', 'ZERO');
+        $this->createFlowSetting($zeroTargetMill, ['8' => ['green' => 0, 'red' => 0]]);
+
+        $attention = $service->evaluateBtsProgress(2635, $this->kkhg->id, '2026-08-31');
+        $onTarget = $service->evaluateBtsProgress(2945, $this->kkhg->id, '2026-08-31');
+        $behind = $service->evaluateBtsProgress(2634.99, $this->kkhg->id, '2026-08-31');
+        $zero = $service->evaluateBtsProgress(100, $zeroTargetMill->id, '2026-08-31');
+        $missing = $service->evaluateBtsProgress(100, 999999, '2026-08-31');
+        $noData = $service->evaluateBtsProgress(null, $this->kkhg->id, '2026-08-31', false);
+
+        $this->assertSame(85.0, $attention['achievement_percentage']);
+        $this->assertSame('Perlu Perhatian', $attention['status_label']);
+        $this->assertSame(95.0, $onTarget['achievement_percentage']);
+        $this->assertSame('Mengikut Sasaran', $onTarget['status_label']);
+        $this->assertSame('Ketinggalan', $behind['status_label']);
+        $this->assertSame('Tidak Dinilai', $zero['status_label']);
+        $this->assertSame('Tidak Dinilai', $missing['status_label']);
+        $this->assertSame('Tidak Dinilai', $noData['status_label']);
+        $this->assertNull($zero['achievement_percentage']);
+    }
+
+    public function test_combined_bts_progress_uses_pooled_actual_and_target_totals(): void
+    {
+        $service = app(KpiEvaluationService::class);
+        $this->createFlowSetting($this->kkhg, ['8' => ['green' => 3100, 'red' => 2500]]);
+        $this->createFlowSetting($this->kbb, ['8' => ['green' => 6200, 'red' => 5000]]);
+
+        $combined = $service->combineBtsProgress([
+            $service->evaluateBtsProgress(2500, $this->kkhg->id, '2026-08-31'),
+            $service->evaluateBtsProgress(4000, $this->kbb->id, '2026-08-31'),
+        ], '2026-08-31');
+
+        $this->assertSame(6500.0, $combined['actual_bts_mtd']);
+        $this->assertSame(9300.0, $combined['prorated_target']);
+        $this->assertSame(69.89, $combined['achievement_percentage']);
+        $this->assertSame(-2800.0, $combined['variance']);
+    }
+
+    public function test_pdf_filters_khg_kbb_combined_and_invalid_scope_and_respects_as_of_date(): void
+    {
+        $reportDate = Carbon::parse('2026-08-05');
+        $this->createOperation($this->kkhg, ['tarikh' => '2026-08-05', 'bts_diterima' => 500]);
+        $this->createOperation($this->kbb, ['tarikh' => '2026-08-05', 'bts_diterima' => 700]);
+        $this->createOperation($this->kkhg, ['tarikh' => '2026-08-06', 'bts_diterima' => 900]);
+        $service = app(DashboardPdfService::class);
+
+        $khg = $service->generate($reportDate, 'KHG');
+        $kbb = $service->generate($reportDate, 'BBJ');
+        $combined = $service->generate($reportDate);
+        $invalid = $service->generate($reportDate, 'NOT-A-MILL');
+        $khgHtml = $this->renderReport($khg['mill_summaries']);
+        $kbbHtml = $this->renderReport($kbb['mill_summaries']);
+        $combinedHtml = $this->renderReport($combined['mill_summaries']);
+
+        $this->assertSame(['KHG'], $khg['mill_summaries']->pluck('code')->all());
+        $this->assertSame(500.0, $khg['mill_summaries']->first()['mtd']['bts_diterima']);
+        $this->assertSame(['BBJ'], $kbb['mill_summaries']->pluck('code')->all());
+        $this->assertSame(['KHG', 'BBJ'], $combined['mill_summaries']->pluck('code')->all());
+        $this->assertSame(['KHG', 'BBJ'], $invalid['mill_summaries']->pluck('code')->all());
+        $this->assertStringStartsWith('%PDF', $khg['content']);
+        $this->assertStringStartsWith('%PDF', $kbb['content']);
+        $this->assertMtdTableColumnCount($khgHtml, 2);
+        $this->assertMtdTableColumnCount($kbbHtml, 2);
+        $this->assertMtdTableColumnCount($combinedHtml, 3);
+    }
+
+    public function test_dashboard_pdf_url_keeps_date_and_mill_filters_together(): void
+    {
+        $url = route('dashboard.pdf', ['tarikh' => '2026-08-05', 'mill' => 'KHG']);
+
+        $this->assertStringContainsString('tarikh=2026-08-05', $url);
+        $this->assertStringContainsString('mill=KHG', $url);
+    }
+
     private function createMill(string $name, string $code): Mill
     {
         return Mill::create([
@@ -205,13 +302,13 @@ class DailyDashboardKpiReportTest extends TestCase
         return DailyOperation::create($payload);
     }
 
-    private function createFlowSetting(Mill $mill, array $monthlyTargets): KpiIndicatorSetting
+    private function createFlowSetting(Mill $mill, array $monthlyTargets, int $year = 2026): KpiIndicatorSetting
     {
         $indicator = KpiEvaluationService::indicatorMap()['bts_diterima_dan_diproses'];
 
         return KpiIndicatorSetting::create([
             'mill_id' => $mill->id,
-            'year' => 2026,
+            'year' => $year,
             'indicator_code' => 'bts_diterima_dan_diproses',
             'indicator_name' => $indicator['name'],
             'unit' => $indicator['unit'],
@@ -248,5 +345,27 @@ class DailyDashboardKpiReportTest extends TestCase
             'millSummaries' => $millSummaries,
             'attentionMessages' => [],
         ])->render();
+    }
+
+    private function assertMtdTableColumnCount(string $html, int $expectedColumns): void
+    {
+        $document = new \DOMDocument();
+        $previousErrorState = libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8">' . $html);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousErrorState);
+
+        $xpath = new \DOMXPath($document);
+        $rows = $xpath->query('//table[contains(concat(" ", normalize-space(@class), " "), " mtd-table ")]//tr');
+
+        $this->assertNotFalse($rows);
+        $this->assertGreaterThan(0, $rows->length);
+
+        foreach ($rows as $row) {
+            $cells = $xpath->query('./th|./td', $row);
+            $label = trim($cells->item(0)?->textContent ?? 'baris MTD');
+
+            $this->assertSame($expectedColumns, $cells->length, "Bilangan kolum tidak sepadan untuk {$label}.");
+        }
     }
 }

@@ -32,6 +32,7 @@ class DashboardController extends Controller
 
         // Untuk paparan metrik Harian gunakan data semalam (T+1 workflow)
         $displayDate = Carbon::yesterday()->toDateString();
+        $displayDateCarbon = Carbon::parse($displayDate);
 
         $baseQuery = DailyOperation::query();
         if ($selectedMillId) {
@@ -201,12 +202,27 @@ class DashboardController extends Controller
             $cursor->addDay();
         }
 
-        $currentYear = now()->year;
-        $displayMonth = (int) Carbon::parse($displayDate)->month;
+        $currentYear = (int) $displayDateCarbon->year;
+        $displayMonth = (int) $displayDateCarbon->month;
+
+        $mtd = (clone $baseQuery)
+            ->forMonth($currentYear, $displayMonth)
+            ->whereDate('tarikh', '<=', $displayDate)
+            ->get();
 
         $alertMessages = [];
+        $btsProgressByMill = [];
         foreach ($mills as $mill) {
             $millTodayData = $todayData->where('mill_id', $mill->id);
+            $millMtdData = $mtd->where('mill_id', $mill->id);
+
+            $btsProgressByMill[] = $this->kpiEvaluationService->evaluateBtsProgress(
+                (float) $millMtdData->sum('bts_diterima'),
+                $mill->id,
+                $displayDate,
+                $millMtdData->isNotEmpty()
+            );
+
             if ($millTodayData->isEmpty()) {
                 continue;
             }
@@ -240,29 +256,15 @@ class DashboardController extends Controller
                 $alertMessages[] = "⏱️ Downtime {$millName} hari ini (" . number_format((float) ($downtimeResult['actual_percentage'] ?? 0), 2) . "%) berada pada atau melepasi ambang merah KPI (" . number_format((float) ($downtimeResult['red_threshold'] ?? 0), 2) . "%).";
             }
 
-            $btsResult = $this->kpiEvaluationService->evaluateBtsCombined(
-                (float) $millTodayData->sum('bts_diterima'),
-                (float) $millTodayData->sum('bts_diproses'),
-                $mill->id,
-                $currentYear,
-                $displayMonth,
-                true,
-                $displayDate
-            );
-
-            if (in_array(($btsResult['status'] ?? 'grey'), ['red', 'yellow'], true)) {
-                $statusLabel = strtoupper((string) ($btsResult['status_label'] ?? 'Perhatian'));
-                $alertMessages[] = "📦 KPI BTS {$millName}: {$statusLabel}. Diterima "
-                    . number_format((float) ($btsResult['actual_bts_diterima'] ?? 0), 2)
-                    . " MT, Diproses "
-                    . number_format((float) ($btsResult['actual_bts_diproses'] ?? 0), 2)
-                    . " MT, Sasaran "
-                    . number_format((float) ($btsResult['target'] ?? 0), 2)
-                    . " MT.";
-            }
         }
 
-        $mtd = (clone $baseQuery)->forMonth(now()->year, now()->month)->get();
+        $btsProgress = $selectedMillId
+            ? ($btsProgressByMill[0] ?? $this->kpiEvaluationService->combineBtsProgress([], $displayDate))
+            : $this->kpiEvaluationService->combineBtsProgress($btsProgressByMill, $displayDate);
+        $btsProgressLabel = $selectedMillId
+            ? (string) ($mills->firstWhere('id', (int) $selectedMillId)?->name ?? 'Kilang')
+            : 'Gabungan Kilang';
+        $alertMessages[] = $this->formatBtsProgressMessage($btsProgressLabel, $btsProgress, $displayDateCarbon);
 
         $ytdStartDate = $currentYear === 2026
             ? Carbon::parse(self::YTD_BASELINE_DATE)->toDateString()
@@ -356,12 +358,55 @@ class DashboardController extends Controller
         ]);
     }
 
-public function downloadPdf(Request $request, DashboardPdfService $dashboardPdfService)
-{
-    $report = $dashboardPdfService->generate();
+    public function downloadPdf(Request $request, DashboardPdfService $dashboardPdfService)
+    {
+        $displayDate = Carbon::yesterday();
+        if ($request->filled('tarikh')) {
+            try {
+                $requestedDate = Carbon::createFromFormat('Y-m-d', (string) $request->input('tarikh'));
+                if ($requestedDate->format('Y-m-d') === $request->input('tarikh')) {
+                    $displayDate = $requestedDate;
+                }
+            } catch (\Throwable) {
+                // Kekalkan tarikh paparan lalai untuk parameter lama atau tidak sah.
+            }
+        }
 
-    return $report['pdf']->download($report['filename']);
-}
+        $millCode = strtoupper((string) $request->input('mill', ''));
+        if (! in_array($millCode, DashboardPdfService::ALLOWED_MILL_CODES, true)) {
+            $millCode = null;
+        }
+
+        $report = $dashboardPdfService->generate($displayDate, $millCode);
+
+        return $report['pdf']->download($report['filename']);
+    }
+
+    private function formatBtsProgressMessage(string $scopeLabel, array $progress, Carbon $displayDate): string
+    {
+        if (($progress['status'] ?? 'grey') === 'grey') {
+            return "📦 Kemajuan KPI BTS {$scopeLabel}: Tidak Dinilai kerana sasaran atau data tidak mencukupi.";
+        }
+
+        $actual = (float) $progress['actual_bts_mtd'];
+        $target = (float) $progress['prorated_target'];
+        $achievement = (float) $progress['achievement_percentage'];
+        $variance = (float) $progress['variance'];
+        $statusLabel = (string) $progress['status_label'];
+        $differenceText = $variance >= 0
+            ? 'melebihi sasaran ' . number_format($variance, 2) . ' MT'
+            : 'ketinggalan ' . number_format(abs($variance), 2) . ' MT';
+
+        return "📦 Kemajuan KPI BTS {$scopeLabel}: "
+            . number_format($actual, 2)
+            . ' MT daripada sasaran setakat '
+            . $displayDate->translatedFormat('j F Y')
+            . ' sebanyak '
+            . number_format($target, 2)
+            . ' MT — pencapaian '
+            . number_format($achievement, 2)
+            . "%, {$differenceText}. Status: {$statusLabel}.";
+    }
 
     private function buildPdfAttentionMessages($millSummaries): array
     {

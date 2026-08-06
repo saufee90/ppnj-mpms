@@ -8,16 +8,20 @@ use Carbon\Carbon;
 
 class DashboardPdfService
 {
+    public const ALLOWED_MILL_CODES = ['KHG', 'BBJ'];
+
     public function __construct(private readonly KpiEvaluationService $kpiEvaluationService)
     {
     }
 
-    public function generate(?Carbon $displayDate = null): array
+    public function generate(?Carbon $displayDate = null, ?string $millCode = null): array
     {
         $displayDate ??= Carbon::yesterday();
+        $millCode = in_array($millCode, self::ALLOWED_MILL_CODES, true) ? $millCode : null;
 
         $statusMills = Mill::query()
-            ->whereIn('code', ['KHG', 'BBJ'])
+            ->whereIn('code', self::ALLOWED_MILL_CODES)
+            ->when($millCode, fn ($query) => $query->where('code', $millCode))
             ->orderByRaw("CASE code WHEN 'KHG' THEN 1 WHEN 'BBJ' THEN 2 ELSE 99 END")
             ->get();
 
@@ -31,7 +35,8 @@ class DashboardPdfService
 
             $mtdQuery = DailyOperation::query()
                 ->where('mill_id', $mill->id)
-                ->forMonth($displayDate->year, $displayDate->month);
+                ->forMonth($displayDate->year, $displayDate->month)
+                ->whereDate('tarikh', '<=', $displayDate->toDateString());
 
             $mtdRows = $mtdQuery->get();
             $mtdOperatedDays = (clone $mtdQuery)->operated()->count();

@@ -457,6 +457,74 @@ class KpiEvaluationService
         ];
     }
 
+    public function evaluateBtsProgress(
+        ?float $actualBtsMtd,
+        ?int $millId,
+        string $asOfDate,
+        bool $hasOperationalData = true
+    ): array {
+        try {
+            $date = Carbon::parse($asOfDate)->startOfDay();
+        } catch (\Throwable) {
+            return $this->buildBtsProgressResult(0, null, null);
+        }
+
+        $actual = max(0, (float) ($actualBtsMtd ?? 0));
+        if (! $hasOperationalData || $actualBtsMtd === null) {
+            return $this->buildBtsProgressResult($actual, null, $date);
+        }
+
+        $setting = $this->resolveSetting(
+            'bts_diterima_dan_diproses',
+            $millId,
+            (int) $date->year
+        );
+        if (! $setting) {
+            return $this->buildBtsProgressResult($actual, null, $date);
+        }
+
+        $thresholds = $this->resolveMonthlyThresholds($setting, (int) $date->month);
+        $monthlyTarget = $thresholds['green'] ?? null;
+        if (! is_numeric($monthlyTarget) || (float) $monthlyTarget <= 0) {
+            return $this->buildBtsProgressResult($actual, null, $date);
+        }
+
+        $proratedTarget = (float) $monthlyTarget * $date->day / $date->daysInMonth;
+
+        return $this->buildBtsProgressResult($actual, $proratedTarget, $date, (float) $monthlyTarget);
+    }
+
+    public function combineBtsProgress(iterable $results, string $asOfDate): array
+    {
+        try {
+            $date = Carbon::parse($asOfDate)->startOfDay();
+        } catch (\Throwable) {
+            return $this->buildBtsProgressResult(0, null, null);
+        }
+
+        $actual = 0.0;
+        $proratedTarget = 0.0;
+        $monthlyTarget = 0.0;
+        $validTargetCount = 0;
+
+        foreach ($results as $result) {
+            if (! is_numeric($result['prorated_target'] ?? null) || (float) $result['prorated_target'] <= 0) {
+                continue;
+            }
+
+            $actual += max(0, (float) ($result['actual_bts_mtd'] ?? 0));
+            $proratedTarget += (float) $result['prorated_target'];
+            $monthlyTarget += max(0, (float) ($result['monthly_target'] ?? 0));
+            $validTargetCount++;
+        }
+
+        if ($validTargetCount === 0) {
+            return $this->buildBtsProgressResult(0, null, $date);
+        }
+
+        return $this->buildBtsProgressResult($actual, $proratedTarget, $date, $monthlyTarget);
+    }
+
     public function evaluate(
         string $indicatorCode,
         ?float $actual,
@@ -729,6 +797,54 @@ class KpiEvaluationService
             'green' => round($monthlyGreen * $ratio, 2),
             'red' => round($monthlyRed * $ratio, 2),
         ];
+    }
+
+    private function buildBtsProgressResult(
+        float $actual,
+        ?float $proratedTarget,
+        ?Carbon $date,
+        ?float $monthlyTarget = null
+    ): array {
+        $base = [
+            'actual_bts_mtd' => round(max(0, $actual), 2),
+            'monthly_target' => $monthlyTarget !== null ? round(max(0, $monthlyTarget), 2) : null,
+            'prorated_target' => $proratedTarget !== null ? round(max(0, $proratedTarget), 2) : null,
+            'elapsed_days' => $date?->day,
+            'total_days' => $date?->daysInMonth,
+            'as_of_date' => $date?->toDateString(),
+            'achievement_percentage' => null,
+            'variance' => null,
+            'status' => 'grey',
+            'status_label' => 'Tidak Dinilai',
+            'colour' => '#9CA3AF',
+        ];
+
+        if ($date === null || $proratedTarget === null || $proratedTarget <= 0) {
+            return $base;
+        }
+
+        $achievement = ($actual / $proratedTarget) * 100;
+        $status = 'red';
+        $statusLabel = 'Ketinggalan';
+        $colour = '#DC2626';
+
+        if ($achievement >= 95) {
+            $status = 'green';
+            $statusLabel = 'Mengikut Sasaran';
+            $colour = '#16A34A';
+        } elseif ($achievement >= 85) {
+            $status = 'yellow';
+            $statusLabel = 'Perlu Perhatian';
+            $colour = '#F59E0B';
+        }
+
+        return array_merge($base, [
+            'achievement_percentage' => round($achievement, 2),
+            'variance' => round($actual - $proratedTarget, 2),
+            'status' => $status,
+            'status_label' => $statusLabel,
+            'colour' => $colour,
+        ]);
     }
 
     private function buildGreyResult(

@@ -268,7 +268,7 @@
             <div class="header-cell" style="width:94px;"></div>
         </div>
 
-        <div class="section-title">Ringkasan Harian Dua Kilang</div>
+        <div class="section-title">Ringkasan Harian {{ $millSummaries->count() > 1 ? 'Dua Kilang' : ($millSummaries->first()['name'] ?? 'Kilang') }}</div>
         <table class="two-col">
             <tr>
                 @foreach($millSummaries as $summary)
@@ -335,48 +335,41 @@
         <table class="mtd-table">
             <tr>
                 <th style="width:28%;">Metrik</th>
-                <th style="width:36%;">Kilang Kahang</th>
-                <th style="width:36%;">Kilang Bukit Bujang</th>
+                @foreach($millSummaries as $summary)
+                    <th>{{ $summary['name'] }}</th>
+                @endforeach
             </tr>
             <tr>
                 <td class="label">BTS diterima MTD</td>
-                <td>{{ number_format($millSummaries[0]['mtd']['bts_diterima'] ?? 0, 2) }}</td>
-                <td>{{ number_format($millSummaries[1]['mtd']['bts_diterima'] ?? 0, 2) }}</td>
+                @foreach($millSummaries as $summary)<td>{{ number_format($summary['mtd']['bts_diterima'] ?? 0, 2) }}</td>@endforeach
             </tr>
             <tr>
                 <td class="label">BTS diproses MTD</td>
-                <td>{{ number_format($millSummaries[0]['mtd']['bts_diproses'] ?? 0, 2) }}</td>
-                <td>{{ number_format($millSummaries[1]['mtd']['bts_diproses'] ?? 0, 2) }}</td>
+                @foreach($millSummaries as $summary)<td>{{ number_format($summary['mtd']['bts_diproses'] ?? 0, 2) }}</td>@endforeach
             </tr>
             <tr>
                 <td class="label">Pengeluaran CPO MTD</td>
-                <td>{{ number_format($millSummaries[0]['mtd']['pengeluaran_cpo'] ?? 0, 2) }}</td>
-                <td>{{ number_format($millSummaries[1]['mtd']['pengeluaran_cpo'] ?? 0, 2) }}</td>
+                @foreach($millSummaries as $summary)<td>{{ number_format($summary['mtd']['pengeluaran_cpo'] ?? 0, 2) }}</td>@endforeach
             </tr>
             <tr>
                 <td class="label">Pengeluaran PK MTD</td>
-                <td>{{ number_format($millSummaries[0]['mtd']['pengeluaran_pk'] ?? 0, 2) }}</td>
-                <td>{{ number_format($millSummaries[1]['mtd']['pengeluaran_pk'] ?? 0, 2) }}</td>
+                @foreach($millSummaries as $summary)<td>{{ number_format($summary['mtd']['pengeluaran_pk'] ?? 0, 2) }}</td>@endforeach
             </tr>
             <tr>
                 <td class="label">OER MTD</td>
-                <td>{{ number_format($millSummaries[0]['mtd']['oer'] ?? 0, 2) }}%</td>
-                <td>{{ number_format($millSummaries[1]['mtd']['oer'] ?? 0, 2) }}%</td>
+                @foreach($millSummaries as $summary)<td>{{ number_format($summary['mtd']['oer'] ?? 0, 2) }}%</td>@endforeach
             </tr>
             <tr>
                 <td class="label">KER MTD</td>
-                <td>{{ number_format($millSummaries[0]['mtd']['ker'] ?? 0, 2) }}%</td>
-                <td>{{ number_format($millSummaries[1]['mtd']['ker'] ?? 0, 2) }}%</td>
+                @foreach($millSummaries as $summary)<td>{{ number_format($summary['mtd']['ker'] ?? 0, 2) }}%</td>@endforeach
             </tr>
             <tr>
                 <td class="label">Downtime MTD</td>
-                <td>{{ number_format($millSummaries[0]['mtd']['downtime'] ?? 0, 2) }}</td>
-                <td>{{ number_format($millSummaries[1]['mtd']['downtime'] ?? 0, 2) }}</td>
+                @foreach($millSummaries as $summary)<td>{{ number_format($summary['mtd']['downtime'] ?? 0, 2) }}</td>@endforeach
             </tr>
             <tr>
                 <td class="label">Hari operasi bulan semasa</td>
-                <td>{{ number_format($millSummaries[0]['mtd']['hari_operasi'] ?? 0, 0) }}</td>
-                <td>{{ number_format($millSummaries[1]['mtd']['hari_operasi'] ?? 0, 0) }}</td>
+                @foreach($millSummaries as $summary)<td>{{ number_format($summary['mtd']['hari_operasi'] ?? 0, 0) }}</td>@endforeach
             </tr>
         </table>
 

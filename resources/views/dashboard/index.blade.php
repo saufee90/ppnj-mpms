@@ -5,7 +5,10 @@
 
 @if(auth()->user()->canViewAllMills())
 <div class="mb-6 flex justify-end">
-    <a href="{{ route('dashboard.pdf') }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white" style="background-color: #0B5D32;">
+    @php
+        $selectedMillCode = $selectedMillId ? $mills->firstWhere('id', (int) $selectedMillId)?->code : null;
+    @endphp
+    <a href="{{ route('dashboard.pdf', array_filter(['tarikh' => now()->subDay()->toDateString(), 'mill' => $selectedMillCode])) }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white" style="background-color: #0B5D32;">
         Jana PDF
     </a>
 </div>
