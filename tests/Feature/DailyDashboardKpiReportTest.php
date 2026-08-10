@@ -198,6 +198,44 @@ class DailyDashboardKpiReportTest extends TestCase
             ->assertSee('(0.00%) berada pada atau di bawah ambang merah KPI', false);
     }
 
+    public function test_daily_oer_and_ker_trends_use_null_for_receive_only_days_and_keep_operating_zero(): void
+    {
+        Carbon::setTestNow('2026-08-03 08:00:00');
+
+        $this->createOperation($this->kbb, [
+            'tarikh' => '2026-08-01',
+            'operation_status' => 'Tidak Operasi (Terima Buah Sahaja)',
+            'bts_diterima' => 100,
+            'bts_diproses' => 0,
+            'produksi_cpo' => 0,
+            'produksi_pk' => 0,
+        ]);
+        $this->createOperation($this->kbb, [
+            'tarikh' => '2026-08-02',
+            'operation_status' => 'Operasi',
+            'bts_diproses' => 100,
+            'produksi_cpo' => 0,
+            'produksi_pk' => 0,
+        ]);
+        $this->mock(MpobPriceService::class, function ($mock) {
+            $mock->shouldReceive('getForDashboard')->once()->andReturn([
+                'products' => [],
+                'mpob_last_update' => null,
+                'source_url' => null,
+                'refreshed_at' => null,
+                'checked_at' => null,
+                'source_available' => false,
+            ]);
+        });
+
+        $response = $this->actingAs($this->officer)
+            ->get(route('dashboard'))
+            ->assertOk();
+
+        $this->assertSame([null, 0.0, null], $response->viewData('oerTrend'));
+        $this->assertSame([null, 0.0, null], $response->viewData('kerTrend'));
+    }
+
     public function test_bts_progress_prorates_early_mid_and_end_month_and_leap_february(): void
     {
         $service = app(KpiEvaluationService::class);

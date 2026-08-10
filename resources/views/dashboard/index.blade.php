@@ -399,13 +399,37 @@ new Chart(document.getElementById('chartBts'), {
 new Chart(document.getElementById('chartOer'), {
     type: 'line',
     data: { labels, datasets: [{ label: 'OER (%)', data: @json($oerTrend), borderColor: greenColor, backgroundColor: greenColor+'20', fill: true, tension: 0.3 }] },
-    options: { responsive: true }
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                min: 16,
+                max: 20,
+                ticks: {
+                    stepSize: 0.25,
+                    callback: value => Number(value).toFixed(2)
+                }
+            }
+        }
+    }
 });
 
 new Chart(document.getElementById('chartKer'), {
     type: 'line',
     data: { labels, datasets: [{ label: 'KER (%)', data: @json($kerTrend), borderColor: goldColor, backgroundColor: goldColor+'30', fill: true, tension: 0.3 }] },
-    options: { responsive: true }
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                min: 2,
+                max: 6,
+                ticks: {
+                    stepSize: 0.25,
+                    callback: value => Number(value).toFixed(2)
+                }
+            }
+        }
+    }
 });
 
 new Chart(document.getElementById('chartDowntime'), {

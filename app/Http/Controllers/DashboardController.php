@@ -195,8 +195,13 @@ class DashboardController extends Controller
             $labels[] = $cursor->format('d/m');
             $rows = $trendData->get($date, collect());
             $btsProcessedTrend[] = round($rows->sum('bts_diproses'), 2);
-            $oerTrend[] = round($this->computeRateFromRows($rows, 'produksi_cpo'), 2);
-            $kerTrend[] = round($this->computeRateFromRows($rows, 'produksi_pk'), 2);
+            $operatingRows = $rows->filter(fn ($row) => $row->operation_status === 'Operasi');
+            $oerTrend[] = $operatingRows->isEmpty()
+                ? null
+                : round($this->computeRateFromRows($operatingRows, 'produksi_cpo'), 2);
+            $kerTrend[] = $operatingRows->isEmpty()
+                ? null
+                : round($this->computeRateFromRows($operatingRows, 'produksi_pk'), 2);
             $downtimeTrend[] = $this->kpiEvaluationService->calculateDowntimePercentageFromRows($rows);
 
             $cursor->addDay();
