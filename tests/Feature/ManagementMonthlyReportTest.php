@@ -401,6 +401,41 @@ class ManagementMonthlyReportTest extends TestCase
         $this->assertSame('yellow', $result['status']);
     }
 
+    public function test_khg_august_report_uses_legacy_bts_setting_with_null_period_target(): void
+    {
+        $this->createOperation($this->kahang, '2026-08-09', [
+            'bts_diterima' => 156.82,
+            'bts_diproses' => 156.82,
+        ]);
+        KpiIndicatorSetting::create([
+            'mill_id' => $this->kahang->id,
+            'year' => 2026,
+            'indicator_code' => 'total_bts_diterima',
+            'indicator_name' => 'Total BTS Diterima',
+            'unit' => 'MT',
+            'evaluation_direction' => 'higher_is_better',
+            'period_target' => null,
+            'monthly_targets' => [
+                '8' => ['green' => 20138.50, 'red' => 18124.65],
+            ],
+            'is_active' => true,
+        ]);
+
+        $result = $this->service->generate(
+            $this->admin,
+            2026,
+            8,
+            $this->kahang->id
+        )['mills'][0]['kpi']['bts'];
+
+        $this->assertSame(156.82, $result['actual_bts_diterima']);
+        $this->assertSame('red', $result['received_result']['status']);
+        $this->assertSame(5846.66, $result['received_result']['green_threshold']);
+        $this->assertSame(5262.0, $result['received_result']['red_threshold']);
+        $this->assertSame(2.68, $result['received_result']['achievement_percentage']);
+        $this->assertSame('red', $result['status']);
+    }
+
     public function test_trend_is_date_sorted_and_does_not_create_missing_days(): void
     {
         $this->createOperation($this->kbb, '2026-07-20', ['bts_diterima' => 20]);

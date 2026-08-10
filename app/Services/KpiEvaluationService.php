@@ -158,8 +158,30 @@ class KpiEvaluationService
             return null;
         }
 
-        return KpiIndicatorSetting::query()
+        $setting = KpiIndicatorSetting::query()
             ->where('indicator_code', $indicatorCode)
+            ->where('year', $year)
+            ->where('is_active', true)
+            ->where('mill_id', $millId)
+            ->latest('id')
+            ->first();
+
+        if ($setting || $indicatorCode !== 'bts_diterima_dan_diproses') {
+            return $setting;
+        }
+
+        $newSettingExists = KpiIndicatorSetting::query()
+            ->where('indicator_code', $indicatorCode)
+            ->where('year', $year)
+            ->where('mill_id', $millId)
+            ->exists();
+
+        if ($newSettingExists) {
+            return null;
+        }
+
+        return KpiIndicatorSetting::query()
+            ->where('indicator_code', 'total_bts_diterima')
             ->where('year', $year)
             ->where('is_active', true)
             ->where('mill_id', $millId)

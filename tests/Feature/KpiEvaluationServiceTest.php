@@ -86,6 +86,140 @@ class KpiEvaluationServiceTest extends TestCase
         $this->assertSame('yellow', $result['status']);
     }
 
+    public function test_legacy_bts_received_setting_is_used_for_august_monthly_report(): void
+    {
+        KpiIndicatorSetting::create([
+            'mill_id' => $this->kkhg->id,
+            'year' => 2026,
+            'indicator_code' => 'total_bts_diterima',
+            'indicator_name' => 'Total BTS Diterima',
+            'unit' => 'MT',
+            'evaluation_direction' => 'higher_is_better',
+            'period_target' => null,
+            'monthly_targets' => [
+                '8' => ['green' => 20138.50, 'red' => 18124.65],
+            ],
+            'is_active' => true,
+        ]);
+
+        $result = $this->service->evaluate(
+            'bts_diterima_dan_diproses',
+            156.82,
+            $this->kkhg->id,
+            2026,
+            8,
+            true,
+            '2026-08-09'
+        );
+
+        $this->assertSame('red', $result['status']);
+        $this->assertSame('Kritikal', $result['status_label']);
+        $this->assertSame(156.82, $result['actual']);
+        $this->assertSame(5846.66, $result['green_threshold']);
+        $this->assertSame(5262.0, $result['red_threshold']);
+        $this->assertSame(2.68, $result['achievement_percentage']);
+        $this->assertSame(-5689.84, $result['variance']);
+    }
+
+    public function test_new_bts_setting_takes_priority_over_legacy_setting(): void
+    {
+        $this->createLegacyBtsSetting($this->kkhg->id, 2026, [
+            '8' => ['green' => 100, 'red' => 80],
+        ]);
+        $this->createFlowSetting('bts_diterima_dan_diproses', $this->kkhg->id, 2026, [
+            '8' => ['green' => 1000, 'red' => 800],
+        ]);
+
+        $result = $this->service->evaluate(
+            'bts_diterima_dan_diproses',
+            150,
+            $this->kkhg->id,
+            2026,
+            8,
+            true,
+            '2026-08-31'
+        );
+
+        $this->assertSame('red', $result['status']);
+        $this->assertSame(1000.0, $result['green_threshold']);
+        $this->assertSame(
+            'bts_diterima_dan_diproses',
+            $this->service->resolveSetting('bts_diterima_dan_diproses', $this->kkhg->id, 2026)?->indicator_code
+        );
+    }
+
+    public function test_disabled_legacy_bts_setting_is_not_used(): void
+    {
+        $this->createLegacyBtsSetting($this->kkhg->id, 2026, [
+            '8' => ['green' => 1000, 'red' => 800],
+        ], false);
+
+        $result = $this->service->evaluate(
+            'bts_diterima_dan_diproses',
+            900,
+            $this->kkhg->id,
+            2026,
+            8,
+            true,
+            '2026-08-31'
+        );
+
+        $this->assertSame('grey', $result['status']);
+        $this->assertSame('Belum Ditetapkan', $result['status_label']);
+    }
+
+    public function test_disabled_new_bts_setting_blocks_active_legacy_fallback(): void
+    {
+        $this->createLegacyBtsSetting($this->kkhg->id, 2026, [
+            '8' => ['green' => 100, 'red' => 80],
+        ]);
+        $newSetting = $this->createFlowSetting('bts_diterima_dan_diproses', $this->kkhg->id, 2026, [
+            '8' => ['green' => 1000, 'red' => 800],
+        ]);
+        $newSetting->update(['is_active' => false]);
+
+        $result = $this->service->evaluate(
+            'bts_diterima_dan_diproses',
+            150,
+            $this->kkhg->id,
+            2026,
+            8,
+            true,
+            '2026-08-31'
+        );
+
+        $this->assertSame('grey', $result['status']);
+        $this->assertSame('Belum Ditetapkan', $result['status_label']);
+    }
+
+    public function test_legacy_bts_setting_for_another_mill_year_or_month_is_not_used(): void
+    {
+        $this->createLegacyBtsSetting($this->kbb->id, 2026, [
+            '8' => ['green' => 1000, 'red' => 800],
+        ]);
+        $this->createLegacyBtsSetting($this->kkhg->id, 2027, [
+            '8' => ['green' => 1000, 'red' => 800],
+        ]);
+        $this->createLegacyBtsSetting($this->kkhg->id, 2026, [
+            '7' => ['green' => 1000, 'red' => 800],
+        ]);
+
+        $result = $this->service->evaluate(
+            'bts_diterima_dan_diproses',
+            900,
+            $this->kkhg->id,
+            2026,
+            8,
+            true,
+            '2026-08-31'
+        );
+
+        $this->assertSame('grey', $result['status']);
+        $this->assertSame('Belum Ditetapkan', $result['status_label']);
+        $this->assertNull($result['green_threshold']);
+        $this->assertNull($result['red_threshold']);
+    }
+
     public function test_month_end_uses_full_monthly_mt_thresholds(): void
     {
         $this->createFlowSetting('jualan_cpo', $this->kbb->id, 2026, [
@@ -371,6 +505,27 @@ class KpiEvaluationServiceTest extends TestCase
             'period_target' => null,
             'monthly_targets' => $monthlyThresholds,
             'is_active' => true,
+        ]);
+    }
+
+    private function createLegacyBtsSetting(
+        int $millId,
+        int $year,
+        array $monthlyThresholds,
+        bool $isActive = true
+    ): KpiIndicatorSetting {
+        return KpiIndicatorSetting::create([
+            'mill_id' => $millId,
+            'year' => $year,
+            'indicator_code' => 'total_bts_diterima',
+            'indicator_name' => 'Total BTS Diterima',
+            'unit' => 'MT',
+            'evaluation_direction' => 'higher_is_better',
+            'green_threshold' => null,
+            'red_threshold' => null,
+            'period_target' => null,
+            'monthly_targets' => $monthlyThresholds,
+            'is_active' => $isActive,
         ]);
     }
 
