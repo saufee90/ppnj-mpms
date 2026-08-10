@@ -81,7 +81,7 @@
     </style>
     @yield('styles')
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-50 min-h-screen overflow-x-hidden">
     <div class="flex">
         <!-- Sidebar -->
         <aside class="ppnj-green w-64 min-h-screen text-white hidden md:flex flex-col fixed">
@@ -93,30 +93,31 @@
                 <p class="org-name">Pertubuhan Peladang Negeri Johor</p>
             </div>
             <nav class="flex-1 py-4 text-sm overflow-y-auto">
-                <a href="{{ route('dashboard') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('dashboard') ? 'active' : '' }}">📊 Dashboard</a>
-
-                @if(auth()->user()->canEditData())
-                <a href="{{ route('data-harian.create') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('data-harian.create') ? 'active' : '' }}">📝 Input Data Harian</a>
-                <a href="{{ route('data-harian.quality-pending') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('data-harian.quality-pending') || request()->routeIs('data-harian.edit-quality') ? 'active' : '' }}">🧪 Kemaskini Kualiti</a>
-                @endif
-
-                <a href="{{ route('rekod-harian.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('rekod-harian.*') ? 'active' : '' }}">📋 Senarai Rekod Harian</a>
-                <a href="{{ route('analisis.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('analisis.*') ? 'active' : '' }}">📈 Analisis Prestasi</a>
-                <a href="{{ route('perbandingan.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('perbandingan.*') ? 'active' : '' }}">⚖️ Perbandingan Kilang</a>
-                <a href="{{ route('laporan.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('laporan.*') ? 'active' : '' }}">🧾 Laporan</a>
-                <a href="{{ route('laporan-pengurusan-bulanan.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('laporan-pengurusan-bulanan.*') ? 'active' : '' }}">📑 Prestasi Bulanan</a>
-
-                @if(auth()->user()->isAdmin())
-                <div class="mt-3 pt-3 border-t border-white/10">
-                    <p class="px-5 text-xs uppercase text-white/40 mb-1">Pentadbiran</p>
-                    <a href="{{ route('kpi.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('kpi.*') ? 'active' : '' }}">🎯 Tetapan KPI</a>
-                    <a href="{{ route('users.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('users.*') ? 'active' : '' }}">👥 Pengurusan Pengguna</a>
-                    <a href="{{ route('maintenance.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('maintenance.*') ? 'active' : '' }}">🛠️ System Maintenance Manager</a>
-                    <a href="{{ route('audit.index') }}" class="nav-link flex items-center gap-3 px-5 py-3 hover:bg-white/10 {{ request()->routeIs('audit.*') ? 'active' : '' }}">🕒 Log Aktiviti</a>
-                </div>
-                @endif
+                @include('layouts.partials.navigation-links')
             </nav>
             <!-- Sticky Footer Section -->
+            <div class="sidebar-footer">
+                <p class="copyright">&copy; 2026 Cawangan Teknologi Maklumat PPNJ</p>
+                <p class="rights">Hak Cipta Terpelihara.</p>
+                <p class="version">MPS v{{ data_get($systemSettings ?? [], 'system_version', $systemVersion ?? '1.0.5') }}</p>
+            </div>
+        </aside>
+
+        <div id="mobile-sidebar-overlay" class="fixed inset-0 z-40 bg-black/50 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden" aria-hidden="true"></div>
+
+        <aside id="mobile-sidebar" class="ppnj-green fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] -translate-x-full flex-col text-white shadow-xl transition-transform duration-200 ease-out md:hidden" role="dialog" aria-modal="true" aria-label="Navigasi utama" aria-hidden="true" inert>
+            <div class="sidebar-branding relative pr-16">
+                <button id="mobile-sidebar-close" type="button" class="absolute right-3 top-3 flex h-11 w-11 items-center justify-center text-2xl text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Tutup menu navigasi">
+                    <span aria-hidden="true">×</span>
+                </button>
+                <img src="{{ asset('images/logo-ppnj.jpg') }}" alt="PPNJ Logo" class="logo">
+                <h1>MPS</h1>
+                <p class="subtitle">Mill Performance System</p>
+                <p class="org-name">Pertubuhan Peladang Negeri Johor</p>
+            </div>
+            <nav id="mobile-navigation-links" class="flex-1 overflow-y-auto py-4 text-sm">
+                @include('layouts.partials.navigation-links')
+            </nav>
             <div class="sidebar-footer">
                 <p class="copyright">&copy; 2026 Cawangan Teknologi Maklumat PPNJ</p>
                 <p class="rights">Hak Cipta Terpelihara.</p>
@@ -134,7 +135,14 @@
             @endif
             <!-- Topbar -->
             <header class="bg-white shadow-sm sticky top-0 z-10 flex items-center justify-between px-6 py-3">
-                <h2 class="text-lg font-semibold ppnj-green-text">@yield('title', 'Dashboard')</h2>
+                <div class="flex min-w-0 items-center gap-2">
+                    <button id="mobile-sidebar-open" type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-700 md:hidden" aria-label="Buka menu navigasi" aria-controls="mobile-sidebar" aria-expanded="false">
+                        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                            <path d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                    <h2 class="truncate text-lg font-semibold ppnj-green-text">@yield('title', 'Dashboard')</h2>
+                </div>
                 <div class="flex items-center gap-4">
                     <div class="text-right text-sm">
                         <p class="font-medium text-gray-700">{{ auth()->user()->name }}</p>
@@ -167,5 +175,61 @@
 
     @yield('scripts')
     @stack('scripts')
+    <script>
+        (function () {
+            const openButton = document.getElementById('mobile-sidebar-open');
+            const closeButton = document.getElementById('mobile-sidebar-close');
+            const drawer = document.getElementById('mobile-sidebar');
+            const overlay = document.getElementById('mobile-sidebar-overlay');
+            const navigationLinks = document.getElementById('mobile-navigation-links');
+            const desktopBreakpoint = window.matchMedia('(min-width: 768px)');
+            let previousBodyOverflow = '';
+
+            function openDrawer() {
+                previousBodyOverflow = document.body.style.overflow;
+                document.body.style.overflow = 'hidden';
+                drawer.classList.remove('-translate-x-full');
+                overlay.classList.remove('opacity-0', 'pointer-events-none');
+                openButton.setAttribute('aria-expanded', 'true');
+                drawer.setAttribute('aria-hidden', 'false');
+                drawer.removeAttribute('inert');
+                overlay.setAttribute('aria-hidden', 'false');
+                closeButton.focus();
+            }
+
+            function closeDrawer(returnFocus = true) {
+                document.body.style.overflow = previousBodyOverflow;
+                drawer.classList.add('-translate-x-full');
+                overlay.classList.add('opacity-0', 'pointer-events-none');
+                openButton.setAttribute('aria-expanded', 'false');
+                drawer.setAttribute('aria-hidden', 'true');
+                drawer.setAttribute('inert', '');
+                overlay.setAttribute('aria-hidden', 'true');
+
+                if (returnFocus && !desktopBreakpoint.matches) {
+                    openButton.focus();
+                }
+            }
+
+            openButton.addEventListener('click', openDrawer);
+            closeButton.addEventListener('click', function () { closeDrawer(); });
+            overlay.addEventListener('click', function () { closeDrawer(); });
+            navigationLinks.addEventListener('click', function (event) {
+                if (event.target.closest('a')) {
+                    closeDrawer(false);
+                }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && openButton.getAttribute('aria-expanded') === 'true') {
+                    closeDrawer();
+                }
+            });
+            desktopBreakpoint.addEventListener('change', function (event) {
+                if (event.matches && openButton.getAttribute('aria-expanded') === 'true') {
+                    closeDrawer(false);
+                }
+            });
+        })();
+    </script>
 </body>
 </html>
