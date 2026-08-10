@@ -62,6 +62,10 @@ class ManagementMonthlyReportPdfTest extends TestCase
             $this->assertStringContainsString("lineChart('chart-bts'", $html);
             $this->assertStringContainsString("lineChart('chart-production'", $html);
             $this->assertStringContainsString("lineChart('chart-downtime'", $html);
+            $this->assertStringContainsString("{min: 16, max: 20}", $html);
+            $this->assertStringContainsString("{min: 2, max: 6}", $html);
+            $this->assertStringContainsString("stepSize: .25", $html);
+            $this->assertStringContainsString("callback: value => Number(value).toFixed(2)", $html);
         }
     }
 

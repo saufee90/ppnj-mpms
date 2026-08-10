@@ -413,6 +413,29 @@ class ManagementMonthlyReportTest extends TestCase
         $this->assertNotContains('2026-07-03', array_column($trend, 'date'));
     }
 
+    public function test_daily_oer_and_ker_trends_are_null_when_not_operating_and_keep_operating_zero(): void
+    {
+        $this->createOperation($this->kbb, '2026-07-01', [
+            'operation_status' => 'Tidak Operasi (Terima Buah Sahaja)',
+            'bts_diterima' => 100,
+            'bts_diproses' => 0,
+            'produksi_cpo' => 0,
+            'produksi_pk' => 0,
+        ]);
+        $this->createOperation($this->kbb, '2026-07-02', [
+            'operation_status' => 'Operasi',
+            'bts_diproses' => 100,
+            'produksi_cpo' => 0,
+            'produksi_pk' => 0,
+        ]);
+
+        $trend = $this->service->generate($this->admin, 2026, 7, $this->kbb->id)['overall']['trend'];
+
+        $this->assertSame(['2026-07-01', '2026-07-02'], array_column($trend, 'date'));
+        $this->assertSame([null, 0.0], array_column($trend, 'oer'));
+        $this->assertSame([null, 0.0], array_column($trend, 'ker'));
+    }
+
     public function test_dynamic_flags_and_operational_issue_observations_follow_available_data(): void
     {
         $this->createOperation($this->kbb, '2026-07-18', [

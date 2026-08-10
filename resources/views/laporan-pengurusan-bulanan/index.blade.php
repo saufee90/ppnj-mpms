@@ -134,11 +134,23 @@ document.addEventListener('DOMContentLoaded', () => {
         options.plugins.managementTargetLine = {value: target};
         new Chart(canvas, {type: 'line', data: {labels: rows.map(row => row.date), datasets: definitions.map((item, index) => ({label: item.label, data: rows.map(row => row[item.key]), borderColor: palette[index], backgroundColor: palette[index], spanGaps: false, tension: .25, pointRadius: 3}))}, options});
     };
-    const dailyBarChart = (id, rows, definition, unit, target = null) => {
+    const dailyBarChart = (id, rows, definition, unit, target = null, yScale = null) => {
         const canvas = document.getElementById(id);
         if (!canvas || !rows.length) return;
         const options = commonOptions(unit);
         options.plugins.managementTargetLine = {value: target};
+        if (yScale) {
+            options.scales.y = {
+                ...options.scales.y,
+                beginAtZero: false,
+                min: yScale.min,
+                max: yScale.max,
+                ticks: {
+                    stepSize: .25,
+                    callback: value => Number(value).toFixed(2)
+                }
+            };
+        }
         new Chart(canvas, {type: 'bar', data: {labels: rows.map(row => row.date), datasets: [{label: definition.label, data: rows.map(row => row[definition.key]), backgroundColor: palette[0], borderColor: palette[0], borderWidth: 1, barPercentage: .8, categoryPercentage: .9}]}, options});
     };
     const barChart = (id, labels, chartDatasets, unit) => {
@@ -151,8 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const single = dataset.mills.length === 1 ? dataset.mills[0] : null;
     lineChart('chart-bts', trend, [{key: 'bts_diterima', label: 'BTS Diterima'}, {key: 'bts_diproses', label: 'BTS Diproses'}], 'MT');
     lineChart('chart-production', trend, [{key: 'cpo', label: 'CPO'}, {key: 'pk', label: 'PK'}], 'MT');
-    dailyBarChart('chart-oer', trend, {key: 'oer', label: 'OER'}, '%', single?.kpi?.oer?.green_threshold ?? null);
-    dailyBarChart('chart-ker', trend, {key: 'ker', label: 'KER'}, '%', single?.kpi?.ker?.green_threshold ?? null);
+    dailyBarChart('chart-oer', trend, {key: 'oer', label: 'OER'}, '%', single?.kpi?.oer?.green_threshold ?? null, {min: 16, max: 20});
+    dailyBarChart('chart-ker', trend, {key: 'ker', label: 'KER'}, '%', single?.kpi?.ker?.green_threshold ?? null, {min: 2, max: 6});
     lineChart('chart-downtime', trend, [{key: 'downtime_percentage', label: 'Downtime'}], '%', single?.kpi?.downtime?.green_threshold ?? null);
     if (dataset.flags.showMillComparison) {
         const mills = dataset.comparison;

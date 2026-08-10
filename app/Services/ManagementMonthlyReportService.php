@@ -304,6 +304,9 @@ class ManagementMonthlyReportService
             ->sortKeys()
             ->map(function (Collection $dayRows, string $date) {
                 $btsDiproses = (float) $dayRows->sum('bts_diproses');
+                $operatingRows = $dayRows->filter(
+                    fn ($row) => $row->operation_status === 'Operasi'
+                );
 
                 return [
                     'date' => $date,
@@ -311,8 +314,12 @@ class ManagementMonthlyReportService
                     'bts_diproses' => round($btsDiproses, 2),
                     'cpo' => round((float) $dayRows->sum('produksi_cpo'), 2),
                     'pk' => round((float) $dayRows->sum('produksi_pk'), 2),
-                    'oer' => $this->kpiEvaluationService->calculateProductionRateFromRows($dayRows, 'produksi_cpo'),
-                    'ker' => $this->kpiEvaluationService->calculateProductionRateFromRows($dayRows, 'produksi_pk'),
+                    'oer' => $operatingRows->isEmpty()
+                        ? null
+                        : $this->kpiEvaluationService->calculateProductionRateFromRows($operatingRows, 'produksi_cpo'),
+                    'ker' => $operatingRows->isEmpty()
+                        ? null
+                        : $this->kpiEvaluationService->calculateProductionRateFromRows($operatingRows, 'produksi_pk'),
                     'throughput' => $this->kpiEvaluationService->calculateThroughputFromRows($dayRows),
                     'downtime_percentage' => $this->kpiEvaluationService->calculateDowntimePercentageFromRows($dayRows),
                 ];
