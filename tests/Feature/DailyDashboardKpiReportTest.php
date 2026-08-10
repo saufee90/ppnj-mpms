@@ -9,6 +9,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\DashboardPdfService;
 use App\Services\KpiEvaluationService;
+use App\Services\MpobPriceService;
 use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -158,6 +159,43 @@ class DailyDashboardKpiReportTest extends TestCase
         $this->assertStringContainsString('Tidak Berkenaan', $html);
         $this->assertStringContainsString('<th>Downtime actual</th><td class="value">Tidak Berkenaan</td>', $html);
         $this->assertStringNotContainsString('<th>Downtime actual</th><td class="value">0.00%</td>', $html);
+    }
+
+    public function test_dashboard_suppresses_zero_oer_alert_for_receive_only_record_but_not_operating_record(): void
+    {
+        Carbon::setTestNow('2026-08-01 08:00:00');
+
+        $operation = $this->createOperation($this->kbb, [
+            'operation_status' => 'Tidak Operasi (Terima Buah Sahaja)',
+            'bts_diterima' => 100,
+            'bts_diproses' => 100,
+            'produksi_cpo' => 0,
+            'stok_cpo' => 25,
+        ]);
+        $this->createDirectIndicatorSetting($this->kbb, 'oer', 21, 19);
+        $this->mock(MpobPriceService::class, function ($mock) {
+            $mock->shouldReceive('getForDashboard')->twice()->andReturn([
+                'products' => [],
+                'mpob_last_update' => null,
+                'source_url' => null,
+                'refreshed_at' => null,
+                'checked_at' => null,
+                'source_available' => false,
+            ]);
+        });
+
+        $this->actingAs($this->officer)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('berada pada atau di bawah ambang merah KPI', false);
+
+        $operation->update(['operation_status' => 'Operasi']);
+
+        $this->actingAs($this->officer)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('OER Kilang Sawit PPNJ', false)
+            ->assertSee('(0.00%) berada pada atau di bawah ambang merah KPI', false);
     }
 
     public function test_bts_progress_prorates_early_mid_and_end_month_and_leap_february(): void
@@ -320,12 +358,17 @@ class DailyDashboardKpiReportTest extends TestCase
 
     private function createDirectSetting(Mill $mill, float $green, float $red): KpiIndicatorSetting
     {
-        $indicator = KpiEvaluationService::indicatorMap()['downtime'];
+        return $this->createDirectIndicatorSetting($mill, 'downtime', $green, $red);
+    }
+
+    private function createDirectIndicatorSetting(Mill $mill, string $indicatorCode, float $green, float $red): KpiIndicatorSetting
+    {
+        $indicator = KpiEvaluationService::indicatorMap()[$indicatorCode];
 
         return KpiIndicatorSetting::create([
             'mill_id' => $mill->id,
             'year' => 2026,
-            'indicator_code' => 'downtime',
+            'indicator_code' => $indicatorCode,
             'indicator_name' => $indicator['name'],
             'unit' => $indicator['unit'],
             'evaluation_direction' => $indicator['direction'],

@@ -227,8 +227,15 @@ class DashboardController extends Controller
                 continue;
             }
 
+            $processingRows = $millTodayData
+                ->filter(fn ($row) => $row->operation_status === 'Operasi');
+
+            if ($processingRows->isEmpty()) {
+                continue;
+            }
+
             $millName = "Kilang Sawit PPNJ {$mill->name}";
-            $millOer = $this->computeRateFromRows($millTodayData, 'produksi_cpo');
+            $millOer = $this->computeRateFromRows($processingRows, 'produksi_cpo');
             $oerResult = $this->kpiEvaluationService->evaluate(
                 'oer',
                 $millOer,
@@ -244,7 +251,7 @@ class DashboardController extends Controller
             }
 
             $downtimeResult = $this->kpiEvaluationService->evaluateDowntimeFromRows(
-                $millTodayData,
+                $processingRows,
                 $mill->id,
                 $currentYear,
                 $displayMonth,
