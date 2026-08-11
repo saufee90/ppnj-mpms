@@ -216,7 +216,7 @@ class DashboardController extends Controller
             $millTodayData = $todayData->where('mill_id', $mill->id);
             $millMtdData = $mtd->where('mill_id', $mill->id);
 
-            $btsProgressByMill[] = $this->kpiEvaluationService->evaluateBtsProgress(
+            $btsProgressByMill[$mill->id] = $this->kpiEvaluationService->evaluateBtsProgress(
                 (float) $millMtdData->sum('bts_diterima'),
                 $mill->id,
                 $displayDate,
@@ -266,7 +266,7 @@ class DashboardController extends Controller
         }
 
         $btsProgress = $selectedMillId
-            ? ($btsProgressByMill[0] ?? $this->kpiEvaluationService->combineBtsProgress([], $displayDate))
+           ? ($btsProgressByMill[(int) $selectedMillId] ?? $this->kpiEvaluationService->combineBtsProgress([], $displayDate))
             : $this->kpiEvaluationService->combineBtsProgress($btsProgressByMill, $displayDate);
         $btsProgressLabel = $selectedMillId
             ? (string) ($mills->firstWhere('id', (int) $selectedMillId)?->name ?? 'Kilang')
