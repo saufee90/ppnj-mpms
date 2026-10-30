@@ -35,4 +35,14 @@ class WeighbridgeCentre extends Model
     {
         return $this->hasMany(FfbSourceAlias::class);
     }
+
+    public function sourceGroups(): HasMany
+    {
+        return $this->hasMany(FfbSourceGroup::class);
+    }
+
+    public function sourceCodeMappings(): HasMany
+    {
+        return $this->hasMany(FfbSourceCodeMapping::class);
+    }
 }
