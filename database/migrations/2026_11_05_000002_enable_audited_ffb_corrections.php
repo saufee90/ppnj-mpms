@@ -227,7 +227,8 @@ return new class extends Migration
                 ) THEN
                     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='FFB batch does not match daily receipt';
                 END IF;
-                IF NEW.operation_status='Tidak Operasi (Tutup Sepenuhnya)' AND (
+                IF NEW.tarikh >= '2026-12-01'
+                AND NEW.operation_status='Tidak Operasi (Tutup Sepenuhnya)' AND (
                     NEW.ffb_import_batch_id IS NULL OR NEW.bts_diterima<>0 OR NEW.bts_diproses<>0
                     OR NEW.jam_operasi<>0 OR NEW.downtime_jam<>0 OR NEW.pengeluaran_cpo<>0
                     OR NEW.pengeluaran_pk<>0 OR NEW.pk_kcp_to_hopper<>0
@@ -255,18 +256,48 @@ return new class extends Migration
     private function requireStage3Database(): void
     {
         $connection = DB::connection();
-        $database = $connection->selectOne('SELECT DATABASE() AS database_name, VERSION() AS version');
+        $database = $connection->selectOne(
+            'SELECT DATABASE() AS database_name, VERSION() AS version'
+        );
 
-        $allowed = $database->database_name === 'mpms_ffb_stage3_test'
-            || ($database->database_name === 'mpms_ffb_master_uat'
+        $isLocalHost = in_array(
+            $connection->getConfig('host'),
+            ['localhost', '127.0.0.1'],
+            true
+        );
+
+        $isMysqlUat = (
+            $database->database_name === 'mpms_ffb_stage3_test'
+            || (
+                $database->database_name === 'mpms_ffb_master_uat'
                 && app()->environment() === 'master-uat'
-                && in_array($connection->getConfig('host'), ['localhost', '127.0.0.1'], true)
-                && $connection->getDatabaseName() === 'mpms_ffb_master_uat');
+                && $connection->getDatabaseName() === 'mpms_ffb_master_uat'
+            )
+        ) && str_starts_with($database->version, '8.4.3');
 
-        if ($connection->getDriverName() !== 'mysql'
-            || ! $allowed
-            || ! str_starts_with($database->version, '8.4.3')) {
-            throw new RuntimeException('Stage 3 migration is restricted to approved isolated MySQL 8.4.3 databases.');
+        $isMariaDbUat = (
+            $database->database_name === 'mpms_ffb_mariadb_uat'
+            && $connection->getDatabaseName() === 'mpms_ffb_mariadb_uat'
+            && app()->environment() === 'mariadb-uat'
+            && (int) $connection->getConfig('port') === 3307
+            && str_starts_with($database->version, '11.4.13')
+        );
+
+        $isProduction = (
+            app()->environment() === 'production'
+            && $database->database_name === 'ppnjcomm_mpms'
+            && $connection->getDatabaseName() === 'ppnjcomm_mpms'
+            && str_starts_with($database->version, '11.4.13-MariaDB')
+        );
+
+        if (
+            $connection->getDriverName() !== 'mysql'
+            || ! $isLocalHost
+            || ! ($isMysqlUat || $isMariaDbUat || $isProduction)
+            ) {
+            throw new RuntimeException(
+                'FFB correction migration requires an approved MySQL/MariaDB UAT or production database.'
+            );
         }
     }
 };

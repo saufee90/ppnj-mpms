@@ -16,7 +16,7 @@ class HistoricalPerformanceImportService
 
     public function dataset(): array
     {
-        $handle = fopen(resource_path('data/mill-monthly-history-2026.csv'), 'r');
+      $handle = fopen(resource_path('data/mill-monthly-history-2026.csv'), 'r');
         if ($handle === false) {
             throw new RuntimeException('Historical source file could not be opened.');
         }

@@ -13,3 +13,4 @@
 mps-kpi-deploy.zip
 # FFB Receive - uploaded weighbridge workbooks
 /storage/app/private/ffb-receive/workbooks/
+.env.mariadb-uat

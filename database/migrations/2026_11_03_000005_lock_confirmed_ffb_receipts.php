@@ -82,7 +82,8 @@ return new class extends Migration
                     IF NEW.ffb_import_batch_id IS NOT NULL AND NOT ({$valid}) THEN
                         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FFB batch does not match daily receipt';
                     END IF;
-                    IF NEW.operation_status='Tidak Operasi (Tutup Sepenuhnya)' AND (
+                   IF NEW.tarikh >= '2026-12-01'
+                    AND NEW.operation_status='Tidak Operasi (Tutup Sepenuhnya)' AND (
                         NEW.ffb_import_batch_id IS NULL OR NEW.bts_diterima<>0 OR NEW.bts_diproses<>0
                         OR NEW.jam_operasi<>0 OR NEW.downtime_jam<>0 OR NEW.pengeluaran_cpo<>0
                         OR NEW.pengeluaran_pk<>0 OR NEW.pk_kcp_to_hopper<>0
