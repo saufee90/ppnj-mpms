@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Models\DailyOperation;
+use App\Models\FfbImportBatch;
 use App\Models\SystemSetting;
 use App\Policies\DailyOperationPolicy;
+use App\Policies\FfbImportBatchPolicy;
 use App\Policies\SystemSettingPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
@@ -21,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(DailyOperation::class, DailyOperationPolicy::class);
+        Gate::policy(FfbImportBatch::class, FfbImportBatchPolicy::class);
         Gate::policy(SystemSetting::class, SystemSettingPolicy::class);
 
         if (Schema::hasTable('system_settings')) {

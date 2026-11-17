@@ -15,11 +15,13 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Tests\Support\SeedsSyntheticYtdHistory;
 use Tests\TestCase;
 
 class ManagementMonthlyReportTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSyntheticYtdHistory;
 
     private ManagementMonthlyReportService $service;
     private Mill $kbb;
@@ -28,6 +30,7 @@ class ManagementMonthlyReportTest extends TestCase
     private User $pengurusan;
     private User $pegawaiKbb;
     private User $pengurusKahang;
+    private User $eksekutifPemasaran;
 
     protected function setUp(): void
     {
@@ -43,13 +46,17 @@ class ManagementMonthlyReportTest extends TestCase
         $managementRole = Role::create(['name' => Role::PENGURUSAN, 'label' => 'Pengurusan']);
         $officerRole = Role::create(['name' => Role::PEGAWAI_KILANG, 'label' => 'Pegawai Kilang']);
         $managerRole = Role::create(['name' => Role::PENGURUS_KILANG, 'label' => 'Pengurus Kilang']);
+        $marketingRole = Role::create(['name' => Role::EKSEKUTIF_PEMASARAN_BTS, 'label' => 'Eksekutif Pemasaran BTS']);
 
         $this->kbb = $this->createMill('Kilang Sawit Bukit Bujang', 'BBJ');
         $this->kahang = $this->createMill('Kilang Sawit PPNJ Kahang', 'KHG');
+        $this->seedSyntheticYtdHistory($this->kbb);
+        $this->seedSyntheticYtdHistory($this->kahang);
         $this->admin = $this->createUser('admin-monthly@test.local', $adminRole);
         $this->pengurusan = $this->createUser('management-monthly@test.local', $managementRole);
         $this->pegawaiKbb = $this->createUser('officer-monthly@test.local', $officerRole, $this->kbb);
         $this->pengurusKahang = $this->createUser('manager-monthly@test.local', $managerRole, $this->kahang);
+        $this->eksekutifPemasaran = $this->createUser('marketing-monthly@test.local', $marketingRole);
         $this->service = app(ManagementMonthlyReportService::class);
     }
 
@@ -328,7 +335,7 @@ class ManagementMonthlyReportTest extends TestCase
         $this->assertSame(2.0, $dataset['mills'][0]['kpi']['downtime']['actual_percentage']);
 
         DailyOperation::query()->delete();
-        $this->createOperation($this->kbb, '2026-07-03', ['jam_operasi' => 0, 'downtime_jam' => 2, 'operation_status' => 'Tidak Operasi']);
+        $this->createOperation($this->kbb, '2026-07-03', ['jam_operasi' => 0, 'downtime_jam' => 2, 'operation_status' => 'Tidak Operasi (Terima Buah Sahaja)']);
         $zeroDataset = $this->service->generate($this->admin, 2026, 7, $this->kbb->id);
 
         $this->assertNull($zeroDataset['overall']['metrics']['downtime_percentage']);
@@ -403,6 +410,7 @@ class ManagementMonthlyReportTest extends TestCase
 
     public function test_khg_august_report_uses_legacy_bts_setting_with_null_period_target(): void
     {
+        Carbon::setTestNow('2026-08-09 12:00:00');
         $this->createOperation($this->kahang, '2026-08-09', [
             'bts_diterima' => 156.82,
             'bts_diproses' => 156.82,
@@ -504,6 +512,40 @@ class ManagementMonthlyReportTest extends TestCase
         Auth::logout();
         $this->get(route('laporan-pengurusan-bulanan.index'))
             ->assertRedirect(route('login'));
+    }
+
+    public function test_marketing_executive_can_view_and_filter_monthly_reports_for_both_mills(): void
+    {
+        $this->seedMonthlyOperations();
+
+        $combined = $this->actingAs($this->eksekutifPemasaran)->get(route(
+            'laporan-pengurusan-bulanan.index',
+            ['bulan' => 7, 'tahun' => 2026]
+        ));
+
+        $combined->assertOk()
+            ->assertSee('Semua Kilang')
+            ->assertViewHas('dataset', function (array $dataset): bool {
+                return array_map(fn (array $report) => $report['mill']['code'], $dataset['mills']) === ['BBJ', 'KHG']
+                    && $dataset['overall']['metrics']['bts_diterima'] === 2100.0;
+            });
+
+        foreach ([$this->kbb, $this->kahang] as $mill) {
+            $this->get(route('laporan-pengurusan-bulanan.index', [
+                'bulan' => 7,
+                'tahun' => 2026,
+                'mill_id' => $mill->id,
+            ]))->assertOk()->assertViewHas('dataset', function (array $dataset) use ($mill): bool {
+                return count($dataset['mills']) === 1
+                    && $dataset['mills'][0]['mill']['id'] === $mill->id
+                    && $dataset['meta']['scope_mill_id'] === $mill->id;
+            });
+        }
+
+        $this->get(route('laporan-pengurusan-bulanan.pdf', [
+            'bulan' => 7,
+            'tahun' => 2026,
+        ]))->assertOk()->assertHeader('Content-Type', 'application/pdf');
     }
 
     private function seedMonthlyOperations(): void

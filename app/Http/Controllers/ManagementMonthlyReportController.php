@@ -22,7 +22,7 @@ class ManagementMonthlyReportController extends Controller
         [$dataset, $month, $year] = $this->resolveReport($request, $reportService);
         $presentation = $presentationService->prepare($dataset);
         $user = $request->user();
-        $mills = $user->canViewAllMills()
+        $mills = $user->canViewAllReportingMills()
             ? Mill::query()->where('is_active', true)->orderBy('name')->get()
             : Mill::query()->whereKey($user->mill_id)->get();
         $earliestDate = DailyOperation::query()->min('tarikh');
@@ -68,7 +68,7 @@ class ManagementMonthlyReportController extends Controller
         ]);
         $month = (int) ($validated['bulan'] ?? now()->month);
         $year = (int) ($validated['tahun'] ?? now()->year);
-        $requestedMillId = $user->canViewAllMills() && isset($validated['mill_id'])
+        $requestedMillId = $user->canViewAllReportingMills() && isset($validated['mill_id'])
             ? (int) $validated['mill_id']
             : null;
 

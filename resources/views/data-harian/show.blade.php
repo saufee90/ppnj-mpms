@@ -3,6 +3,11 @@
 
 @section('content')
 <div class="bg-white rounded-xl shadow-sm p-6 max-w-4xl space-y-6">
+    @if($daily_operation->ffb_import_batch_id)
+    <p class="rounded bg-green-50 p-3">BTS Disahkan / Dikunci:
+        <a href="{{ route('ffb-receive.show', $daily_operation->ffb_import_batch_id) }}" class="text-green-800 underline">FFB #{{ $daily_operation->ffb_import_batch_id }}</a>
+    </p>
+    @endif
 
     @php
         $canUpdate = auth()->user()->canEditData() && auth()->user()->can('update', $daily_operation);

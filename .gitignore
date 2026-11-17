@@ -1,6 +1,9 @@
 /vendor
 /node_modules
 /.env
+/.env.stage3-test
+/.env.stage3-test-app
+/.env.master-uat
 /storage/logs/*.log
 /storage/framework/cache/*
 /storage/framework/sessions/*
@@ -8,3 +11,5 @@
 /bootstrap/cache/*
 .phpunit.result.cache
 mps-kpi-deploy.zip
+# FFB Receive - uploaded weighbridge workbooks
+/storage/app/private/ffb-receive/workbooks/

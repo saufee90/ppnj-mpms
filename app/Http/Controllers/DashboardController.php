@@ -7,16 +7,21 @@ use App\Models\Mill;
 use App\Models\MpobPriceHistory;
 use App\Services\KpiEvaluationService;
 use App\Services\MpobPriceService;
+use App\Services\DashboardWeatherService;
+use App\Services\DashboardKpiProgressService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
 use App\Services\DashboardPdfService;
+use App\Services\YtdPerformanceService;
 
 class DashboardController extends Controller
 {
-    private const YTD_BASELINE_DATE = '2026-07-01';
-
-    public function __construct(private readonly KpiEvaluationService $kpiEvaluationService)
-    {
+    public function __construct(
+        private readonly KpiEvaluationService $kpiEvaluationService,
+        private readonly YtdPerformanceService $ytdPerformanceService,
+        private readonly DashboardKpiProgressService $dashboardKpiProgressService
+    ) {
     }
 
     public function index(Request $request, MpobPriceService $mpobPriceService)
@@ -24,28 +29,71 @@ class DashboardController extends Controller
         $user = $request->user();
         $mills = $user->isMillScopedRole()
             ? Mill::where('id', $user->mill_id)->get()
-            : Mill::where('is_active', true)->get();
+            : Mill::where('is_active', true)
+                ->when(
+                    $user->isEksekutifPemasaranBts(),
+                    fn ($query) => $query->whereIn('code', ['BBJ', 'KHG'])
+                )
+                ->get();
 
         $selectedMillId = $user->isMillScopedRole()
             ? $user->mill_id
-            : $request->input('mill_id');
-
-        // Untuk paparan metrik Harian gunakan data semalam (T+1 workflow)
-        $displayDate = Carbon::yesterday()->toDateString();
-        $displayDateCarbon = Carbon::parse($displayDate);
-
-        $baseQuery = DailyOperation::query();
-        if ($selectedMillId) {
-            $baseQuery->where('mill_id', $selectedMillId);
+            : ($user->canSelectDashboardMill() ? $request->input('mill_id') : null);
+        if (! $user->isMillScopedRole()
+            && $selectedMillId
+            && ! $mills->contains('id', (int) $selectedMillId)) {
+            $selectedMillId = null;
         }
 
-        $isAllMillsSelected = empty($selectedMillId);
-        $canViewComparisonCharts = $user->canViewAllMills();
+        $baseQuery = DailyOperation::query();
+        if ($user->isMillScopedRole()) {
+            $baseQuery->where('mill_id', $user->mill_id);
+        } elseif ($user->isEksekutifPemasaranBts()) {
+            $baseQuery->whereIn('mill_id', $mills->pluck('id'));
+            if ($selectedMillId) {
+                $baseQuery->where('mill_id', (int) $selectedMillId);
+            }
+        } elseif ($user->canSelectDashboardMill()
+            && $request->filled('mill_id')
+            && $mills->contains('id', (int) $request->input('mill_id'))) {
+            $baseQuery->where('mill_id', (int) $request->input('mill_id'));
+        }
 
         $latestOperationRecord = (clone $baseQuery)
+            ->whereDate('tarikh', '<=', Carbon::yesterday()->toDateString())
             ->orderByDesc('tarikh')
             ->orderByDesc('id')
             ->first();
+
+        $requestedDate = null;
+        if ($request->filled('tarikh')) {
+            try {
+                $candidateDate = Carbon::createFromFormat('!Y-m-d', (string) $request->input('tarikh'));
+                if ($candidateDate->format('Y-m-d') === $request->input('tarikh')
+                    && $candidateDate->lte(Carbon::yesterday())) {
+                    $requestedDate = $candidateDate->toDateString();
+                }
+            } catch (\Throwable) {
+                $requestedDate = null;
+            }
+        }
+
+        $displayDate = $requestedDate
+            ?? $latestOperationRecord?->tarikh?->toDateString()
+            ?? Carbon::yesterday()->toDateString();
+        $latestOperationRecord = (clone $baseQuery)
+            ->whereDate('tarikh', '<=', $displayDate)
+            ->orderByDesc('tarikh')
+            ->orderByDesc('id')
+            ->first();
+        $displayDateCarbon = Carbon::parse($displayDate);
+
+        $selectedPeriod = in_array($request->query('period'), ['harian', 'mtd', 'ytd'], true)
+            ? $request->query('period')
+            : 'harian';
+
+        $isAllMillsSelected = empty($selectedMillId);
+        $canViewComparisonCharts = $user->canViewAllMills();
 
         $latestOperationDateText = $latestOperationRecord?->tarikh
             ? $latestOperationRecord->tarikh->translatedFormat('d F Y')
@@ -73,8 +121,8 @@ class DashboardController extends Controller
             ->first();
 
         $operationalStatus = [
-            'baki_bts_selepas_diproses' => (float) ($latestOperationalRecord?->baki_bts_selepas_diproses ?? 0),
-            'stok_cpo' => (float) ($latestOperationalRecord?->stok_cpo ?? 0),
+            'baki_bts_selepas_diproses' => $latestOperationalRecord?->baki_bts_selepas_diproses,
+            'stok_cpo' => $latestOperationalRecord?->stok_cpo,
         ];
 
         $mpobPrices = [
@@ -114,8 +162,15 @@ class DashboardController extends Controller
             ->get();
 
         $operationalStatusByMill = $statusMills->map(function ($mill) use ($displayDate) {
-            $latestMillRecord = DailyOperation::where('mill_id', $mill->id)
+            $latestBalanceRecord = DailyOperation::where('mill_id', $mill->id)
                 ->where('tarikh', '<=', $displayDate)
+                ->whereNotNull('baki_bts_selepas_diproses')
+                ->orderByDesc('tarikh')
+                ->orderByDesc('id')
+                ->first();
+            $latestCpoStockRecord = DailyOperation::where('mill_id', $mill->id)
+                ->where('tarikh', '<=', $displayDate)
+                ->whereNotNull('stok_cpo')
                 ->orderByDesc('tarikh')
                 ->orderByDesc('id')
                 ->first();
@@ -124,12 +179,15 @@ class DashboardController extends Controller
                 'mill_id' => $mill->id,
                 'code' => $mill->code,
                 'name' => $mill->name,
-                'source_tarikh' => $latestMillRecord?->tarikh?->toDateString(),
-                'source_tarikh_text' => $latestMillRecord?->tarikh
-                    ? $latestMillRecord->tarikh->translatedFormat('d F Y')
+                'source_tarikh' => $latestBalanceRecord?->tarikh?->toDateString(),
+                'source_tarikh_text' => $latestBalanceRecord?->tarikh
+                    ? $latestBalanceRecord->tarikh->translatedFormat('d F Y')
                     : '-',
-                'baki_bts_selepas_diproses' => (float) ($latestMillRecord?->baki_bts_selepas_diproses ?? 0),
-                'stok_cpo' => (float) ($latestMillRecord?->stok_cpo ?? 0),
+                'baki_bts_selepas_diproses' => $latestBalanceRecord?->baki_bts_selepas_diproses,
+                'stok_cpo' => $latestCpoStockRecord?->stok_cpo,
+                'stok_cpo_tarikh_text' => $latestCpoStockRecord?->tarikh
+                    ? $latestCpoStockRecord->tarikh->translatedFormat('d F Y')
+                    : '-',
             ];
         });
 
@@ -173,8 +231,8 @@ class DashboardController extends Controller
             }
         }
 
-        $trendStart = now()->startOfMonth()->toDateString();
-        $trendEnd = now()->toDateString();
+        $trendStart = $displayDateCarbon->copy()->startOfMonth()->toDateString();
+        $trendEnd = $displayDate;
         $trendData = (clone $baseQuery)
             ->whereBetween('tarikh', [$trendStart, $trendEnd])
             ->orderBy('tarikh')
@@ -194,9 +252,14 @@ class DashboardController extends Controller
             $date = $cursor->toDateString();
             $labels[] = $cursor->format('d/m');
             $rows = $trendData->get($date, collect());
-            $btsProcessedTrend[] = round($rows->sum('bts_diproses'), 2);
-            $oerTrend[] = round($this->computeRateFromRows($rows, 'produksi_cpo'), 2);
-            $kerTrend[] = round($this->computeRateFromRows($rows, 'produksi_pk'), 2);
+            $btsProcessedTrend[] = $rows->isEmpty() ? null : round($rows->sum('bts_diproses'), 2);
+            $hasProcessedBts = (float) $rows->sum('bts_diproses') > 0;
+            $oerTrend[] = ! $rows->isEmpty() && $hasProcessedBts
+                ? round($this->computeRateFromRows($rows, 'produksi_cpo'), 2)
+                : null;
+            $kerTrend[] = ! $rows->isEmpty() && $hasProcessedBts
+                ? round($this->computeRateFromRows($rows, 'produksi_pk'), 2)
+                : null;
             $downtimeTrend[] = $this->kpiEvaluationService->calculateDowntimePercentageFromRows($rows);
 
             $cursor->addDay();
@@ -273,13 +336,9 @@ class DashboardController extends Controller
             : 'Gabungan Kilang';
         $alertMessages[] = $this->formatBtsProgressMessage($btsProgressLabel, $btsProgress, $displayDateCarbon);
 
-        $ytdStartDate = $currentYear === 2026
-            ? Carbon::parse(self::YTD_BASELINE_DATE)->toDateString()
-            : Carbon::create($currentYear, 1, 1)->toDateString();
-
-        $ytd = (clone $baseQuery)
-            ->whereBetween('tarikh', [$ytdStartDate, now()->toDateString()])
-            ->get();
+        $ytdMillIds = $selectedMillId ? [(int) $selectedMillId] : $mills->pluck('id')->all();
+        $ytd = $this->ytdPerformanceService->rows($displayDateCarbon, $ytdMillIds);
+        $ytdPerformance = $this->ytdPerformanceService->metrics($ytd);
 
         // Kalkulasi metrik Daily/MTD/YTD untuk 6 KPI utama
         $dailyMetrics = [
@@ -332,9 +391,66 @@ class DashboardController extends Controller
             'jam_proses' => $ytd->sum('jam_operasi'),
         ];
 
+        $periodRows = match ($selectedPeriod) {
+            'mtd' => $mtd,
+            'ytd' => $ytd,
+            default => $todayData,
+        };
+        $periodHasRows = $periodRows->isNotEmpty();
+        $periodProcessedBts = (float) $periodRows->sum('bts_diproses');
+        $periodOperatingHours = (float) $periodRows->sum('jam_operasi');
+        $periodMetrics = [
+            'bts_diterima' => $periodHasRows ? (float) $periodRows->sum('bts_diterima') : null,
+            'bts_diproses' => $periodHasRows ? $periodProcessedBts : null,
+            'throughput' => $periodOperatingHours > 0
+                ? round($periodProcessedBts / $periodOperatingHours, 2)
+                : null,
+            'pengeluaran_cpo' => $periodHasRows ? (float) $periodRows->sum('produksi_cpo') : null,
+            'jualan_cpo' => $periodHasRows ? (float) $periodRows->sum('pengeluaran_cpo') : null,
+            'oer' => $periodProcessedBts > 0 ? $this->computeRateFromRows($periodRows, 'produksi_cpo') : null,
+            'pengeluaran_pk' => $periodHasRows ? (float) $periodRows->sum('produksi_pk') : null,
+            'jualan_pk' => $periodHasRows ? (float) $periodRows->sum('pengeluaran_pk') : null,
+            'ker' => $periodProcessedBts > 0 ? $this->computeRateFromRows($periodRows, 'produksi_pk') : null,
+        ];
+        if ($selectedPeriod === 'ytd') {
+            $periodMetrics = $ytdPerformance;
+        }
+
+        $comparisonMetrics = $this->buildComparisonMetrics($mills, $periodRows, $selectedMillId);
+        if ($selectedPeriod === 'ytd') {
+            foreach ($mills as $mill) {
+                if (array_key_exists($mill->code, $comparisonMetrics['by_mill'])) {
+                    $comparisonMetrics['by_mill'][$mill->code] = $this->ytdPerformanceService
+                        ->metrics($ytd->where('mill_id', $mill->id));
+                }
+            }
+            $comparisonMetrics['total'] = $ytdPerformance;
+        }
+        $statusMills = $selectedMillId
+            ? $mills->where('id', (int) $selectedMillId)->values()
+            : $mills;
+        $kpiStatuses = $this->buildKpiStatuses(
+            $statusMills,
+            $periodRows,
+            $selectedPeriod,
+            $displayDateCarbon,
+            $currentYear,
+            $displayMonth,
+            $comparisonMetrics['by_mill']
+        );
+        $kpiProgress = $this->dashboardKpiProgressService->build(
+            $statusMills,
+            $periodRows,
+            $comparisonMetrics['total'],
+            $selectedPeriod,
+            $displayDateCarbon
+        );
+
         return view('dashboard.index', [
             'mills' => $mills,
             'selectedMillId' => $selectedMillId,
+            'selectedPeriod' => $selectedPeriod,
+            'displayDateCarbon' => $displayDateCarbon,
             'isAllMillsSelected' => $isAllMillsSelected,
             'canViewComparisonCharts' => $canViewComparisonCharts,
             'latestOperationDateText' => $latestOperationDateText,
@@ -356,13 +472,200 @@ class DashboardController extends Controller
             'mtdMetrics' => $mtdMetrics,
             'ytdMetrics' => $ytdMetrics,
             'showYtdBaselineNote' => $currentYear === 2026,
+            'ytdNote' => $this->ytdPerformanceService->note($displayDateCarbon),
             'operatedDays' => $operatedDays,
             'referenceDays' => $referenceDays,
             'mtdCpo' => $mtd->sum('pengeluaran_cpo'),
             'mtdBts' => $mtdBtsDiproses,
             'ytdCpo' => $ytd->sum('pengeluaran_cpo'),
             'ytdBts' => $ytdBtsDiproses,
+            'periodMetrics' => $periodMetrics,
+            'comparisonMetrics' => $comparisonMetrics,
+            'kpiStatuses' => $kpiStatuses,
+            'kpiProgress' => $kpiProgress,
+            'trendHasData' => $trendData->isNotEmpty(),
         ]);
+    }
+
+    public function weather(Request $request, DashboardWeatherService $weatherService): JsonResponse
+    {
+        $user = $request->user();
+        $mills = $user->isMillScopedRole()
+            ? Mill::query()->where('id', $user->mill_id)->get()
+            : Mill::query()->whereIn('code', ['KHG', 'BBJ'])->get();
+
+        if (! $user->isMillScopedRole() && $request->filled('mill_id')) {
+            $mills = $mills->where('id', (int) $request->input('mill_id'));
+        }
+
+        $weather = [];
+        foreach ($mills as $mill) {
+            if (in_array($mill->code, ['KHG', 'BBJ'], true)) {
+                $weather[$mill->code] = $weatherService->forMill($mill->code);
+            }
+        }
+
+        return response()->json(['weather' => $weather]);
+    }
+
+    private function buildComparisonMetrics($mills, $rows, $selectedMillId): array
+    {
+        $byMill = [
+            'KHG' => null,
+            'BBJ' => null,
+        ];
+
+        foreach ($mills as $mill) {
+            if (! array_key_exists($mill->code, $byMill)) {
+                continue;
+            }
+
+            $millRows = $rows->where('mill_id', $mill->id);
+            $processed = (float) $millRows->sum('bts_diproses');
+            $operatingHours = (float) $millRows->sum('jam_operasi');
+            $hasRows = $millRows->isNotEmpty();
+            $capacity = match ($mill->code) {
+                'KHG' => 60.0,
+                'BBJ' => 30.0,
+                default => 0.0,
+            };
+            $capacityHours = $operatingHours * $capacity;
+
+            $byMill[$mill->code] = [
+                'bts_diterima' => $hasRows ? (float) $millRows->sum('bts_diterima') : null,
+                'bts_diproses' => $hasRows ? $processed : null,
+                'throughput' => $operatingHours > 0 ? round($processed / $operatingHours, 2) : null,
+                'pengeluaran_cpo' => $hasRows ? (float) $millRows->sum('produksi_cpo') : null,
+                'jualan_cpo' => $hasRows ? (float) $millRows->sum('pengeluaran_cpo') : null,
+                'oer' => $processed > 0 ? $this->computeRateFromRows($millRows, 'produksi_cpo') : null,
+                'pengeluaran_pk' => $hasRows ? (float) $millRows->sum('produksi_pk') : null,
+                'jualan_pk' => $hasRows ? (float) $millRows->sum('pengeluaran_pk') : null,
+                'ker' => $processed > 0 ? $this->computeRateFromRows($millRows, 'produksi_pk') : null,
+                'utilisation' => $capacityHours > 0
+                    ? round(($processed / $capacityHours) * 100, 2)
+                    : null,
+            ];
+        }
+
+        $includedRows = $selectedMillId
+            ? $rows->where('mill_id', (int) $selectedMillId)
+            : $rows;
+        $totalProcessed = (float) $includedRows->sum('bts_diproses');
+        $totalOperatingHours = (float) $includedRows->sum('jam_operasi');
+        $capacityHours = 0.0;
+        foreach ($mills as $mill) {
+            if ($selectedMillId && (int) $mill->id !== (int) $selectedMillId) {
+                continue;
+            }
+            $hours = (float) $includedRows
+                ->where('mill_id', $mill->id)
+                ->sum('jam_operasi');
+            $millCapacity = match ($mill->code) {
+                'KHG' => 60.0,
+                'BBJ' => 30.0,
+                default => 0.0,
+            };
+            $capacityHours += $hours * $millCapacity;
+        }
+
+        $hasIncludedRows = $includedRows->isNotEmpty();
+        $total = [
+            'bts_diterima' => $hasIncludedRows ? (float) $includedRows->sum('bts_diterima') : null,
+            'bts_diproses' => $hasIncludedRows ? $totalProcessed : null,
+            'throughput' => $totalOperatingHours > 0 ? round($totalProcessed / $totalOperatingHours, 2) : null,
+            'pengeluaran_cpo' => $hasIncludedRows ? (float) $includedRows->sum('produksi_cpo') : null,
+            'jualan_cpo' => $hasIncludedRows ? (float) $includedRows->sum('pengeluaran_cpo') : null,
+            'oer' => $totalProcessed > 0 ? $this->computeRateFromRows($includedRows, 'produksi_cpo') : null,
+            'pengeluaran_pk' => $hasIncludedRows ? (float) $includedRows->sum('produksi_pk') : null,
+            'jualan_pk' => $hasIncludedRows ? (float) $includedRows->sum('pengeluaran_pk') : null,
+            'ker' => $totalProcessed > 0 ? $this->computeRateFromRows($includedRows, 'produksi_pk') : null,
+            'utilisation' => $capacityHours > 0
+                ? round(($totalProcessed / $capacityHours) * 100, 2)
+                : null,
+        ];
+
+        return ['by_mill' => $byMill, 'total' => $total];
+    }
+
+    private function buildKpiStatuses(
+        $mills,
+        $periodRows,
+        string $period,
+        Carbon $asOf,
+        int $year,
+        int $month,
+        array $metricsByMill
+    ): array {
+        $indicators = [
+            'bts_diterima' => ['indicator' => 'bts_diterima_dan_diproses', 'flow' => true],
+            'bts_diproses' => ['indicator' => 'bts_diterima_dan_diproses', 'flow' => true],
+            'throughput' => ['indicator' => 'throughput', 'flow' => false],
+            'pengeluaran_cpo' => ['indicator' => 'pengeluaran_cpo', 'flow' => true],
+            'jualan_cpo' => ['indicator' => 'jualan_cpo', 'flow' => true],
+            'oer' => ['indicator' => 'oer', 'flow' => false],
+            'pengeluaran_pk' => ['indicator' => 'pengeluaran_pk', 'flow' => true],
+            'jualan_pk' => ['indicator' => 'jualan_pk', 'flow' => true],
+            'ker' => ['indicator' => 'ker', 'flow' => false],
+        ];
+        $statuses = [];
+        foreach ($indicators as $key => $indicator) {
+            $millLabels = [];
+            $tones = [];
+            foreach ($mills as $mill) {
+                if (! in_array($mill->code, ['KHG', 'BBJ'], true)) {
+                    continue;
+                }
+
+                if ($indicator['flow'] && $period === 'harian') {
+                    $millLabels[] = $mill->code . ': Tiada Sasaran';
+                    $tones[] = 'neutral';
+                    continue;
+                }
+
+                $millRows = $periodRows->where('mill_id', $mill->id);
+                $actual = $metricsByMill[$mill->code][$key] ?? null;
+                $evaluation = $this->kpiEvaluationService->evaluate(
+                    $indicator['indicator'],
+                    $actual,
+                    (int) $mill->id,
+                    $year,
+                    $month,
+                    $millRows->isNotEmpty(),
+                    $asOf->toDateString(),
+                    cumulative: $indicator['flow'] && $period === 'ytd'
+                );
+                $tone = $evaluation['status'] ?? 'grey';
+                $label = match ($tone) {
+                    'green' => 'Capai Sasaran',
+                    'yellow' => 'Perhatian',
+                    'red' => 'Belum Capai Sasaran',
+                    default => ($evaluation['status_label'] ?? '') === 'Tiada Data'
+                        ? 'Perhatian (Tiada Data)'
+                        : 'Tiada Sasaran',
+                };
+                if ($tone === 'grey') {
+                    $tone = 'neutral';
+                }
+                $tones[] = $tone;
+                $millLabels[] = $mill->code . ': ' . $label;
+            }
+
+            if ($tones === []) {
+                $statuses[$key] = ['tone' => 'neutral', 'label' => implode(' · ', $millLabels) ?: 'Tiada Sasaran'];
+                continue;
+            }
+
+            $priority = ['red' => 4, 'yellow' => 3, 'grey' => 2, 'green' => 1];
+            $worstTone = collect($tones)
+                ->sortByDesc(fn (string $tone) => $priority[$tone] ?? 2)
+                ->first();
+            $statuses[$key] = [
+                'tone' => $worstTone,
+                'label' => implode(' · ', $millLabels),
+            ];
+        }
+
+        return $statuses;
     }
 
     public function downloadPdf(Request $request, DashboardPdfService $dashboardPdfService)

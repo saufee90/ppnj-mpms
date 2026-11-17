@@ -3,6 +3,11 @@
 
 @section('content')
 <div class="bg-white rounded-xl shadow-sm p-6 max-w-4xl">
+    @if($daily_operation->ffb_import_batch_id)
+    <p class="mb-4 rounded bg-green-50 p-3 text-green-900">Penerimaan BTS, kilang, tarikh dan shift dikunci.
+        <a href="{{ route('ffb-receive.show', $daily_operation->ffb_import_batch_id) }}" class="underline">FFB #{{ $daily_operation->ffb_import_batch_id }}</a>
+    </p>
+    @endif
     <form id="daily-operation-form" method="POST" action="{{ route('data-harian.update', $daily_operation) }}" class="space-y-6" data-form-mode="edit">
         @csrf
         @method('PUT')
@@ -12,21 +17,23 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Tarikh *</label>
-                    <input type="date" name="tarikh" max="{{ now()->toDateString() }}" value="{{ old('tarikh', $daily_operation->tarikh->toDateString()) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <input type="date" name="tarikh" max="{{ now('Asia/Kuala_Lumpur')->toDateString() }}" value="{{ $daily_operation->ffb_import_batch_id ? $daily_operation->tarikh->toDateString() : old('tarikh', $daily_operation->tarikh->toDateString()) }}" @readonly($daily_operation->ffb_import_batch_id !== null) required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Kilang *</label>
-                    <select name="mill_id" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <select name="mill_id" @disabled($daily_operation->ffb_import_batch_id !== null) required class="w-full border rounded-lg px-3 py-2 text-sm">
                         @foreach($mills as $mill)
-                            <option value="{{ $mill->id }}" data-code="{{ $mill->code }}" {{ old('mill_id', $daily_operation->mill_id) == $mill->id ? 'selected' : '' }}>{{ $mill->name }}</option>
+                            <option value="{{ $mill->id }}" data-code="{{ $mill->code }}" @selected(($daily_operation->ffb_import_batch_id ? $daily_operation->mill_id : old('mill_id', $daily_operation->mill_id)) == $mill->id)>{{ $mill->name }}</option>
                         @endforeach
                     </select>
+                    @if($daily_operation->ffb_import_batch_id)<input type="hidden" name="mill_id" value="{{ $daily_operation->mill_id }}">@endif
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Status Operasi *</label>
                     <select name="operation_status" required class="w-full border rounded-lg px-3 py-2 text-sm">
                         <option value="Operasi" {{ old('operation_status', $daily_operation->operation_status ?? 'Operasi') === 'Operasi' ? 'selected' : '' }}>Operasi</option>
                         <option value="Tidak Operasi (Terima Buah Sahaja)" {{ old('operation_status', $daily_operation->operation_status ?? 'Operasi') === 'Tidak Operasi (Terima Buah Sahaja)' ? 'selected' : '' }}>Tidak Operasi (Terima Buah Sahaja)</option>
+                        @if($daily_operation->ffb_import_batch_id)<option value="Tidak Operasi (Tutup Sepenuhnya)" @selected(old('operation_status', $daily_operation->operation_status) === 'Tidak Operasi (Tutup Sepenuhnya)')>Tidak Operasi (Tutup Sepenuhnya)</option>@endif
                     </select>
                 </div>
             </div>
@@ -37,7 +44,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">BTS Diterima (MT) *</label>
-                    <input type="number" step="0.01" name="bts_diterima" value="{{ old('bts_diterima', $daily_operation->bts_diterima) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <input type="number" step="0.01" name="bts_diterima" value="{{ $daily_operation->ffb_import_batch_id ? $daily_operation->bts_diterima : old('bts_diterima', $daily_operation->bts_diterima) }}" @readonly($daily_operation->ffb_import_batch_id !== null) required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">BTS Diproses (MT) *</label>
@@ -289,7 +296,7 @@
     }
 
     function isBukitBujangSelected() {
-        const millSelect = document.querySelector('[name="mill_id"]');
+        const millSelect = document.querySelector('select[name="mill_id"]');
         if (!millSelect) return false;
 
         const selectedOption = millSelect.options[millSelect.selectedIndex];
@@ -390,18 +397,25 @@
     }
 
     function recalculateDerivedFields() {
-        const isNonOperasi = (document.querySelector('[name="operation_status"]')?.value || '') === 'Tidak Operasi (Terima Buah Sahaja)';
+        const status = document.querySelector('[name="operation_status"]')?.value || 'Operasi';
+        const isNonOperasi = status !== 'Operasi';
         const isKbb = isBukitBujangSelected();
         setQualityFieldState(isNonOperasi);
 
         if (isNonOperasi) {
+            if (status === 'Tidak Operasi (Tutup Sepenuhnya)') {
+                ['pengeluaran_cpo', 'pengeluaran_pk', 'pk_kcp_to_hopper'].forEach(name => writeValue(name, 0));
+            }
             writeValue('bts_diproses', 0);
             writeValue('jam_operasi', 0);
             writeValue('downtime_jam', 0);
 
             const bakiBtsNonOperasi = parseValue('baki_bts_semalam') + parseValue('bts_diterima');
-            const produksiCpoNonOperasi = parseValue('stok_cpo') - parseValue('stok_cpo_yesterday') + parseValue('pengeluaran_cpo');
-            const produksiPkNonOperasi = parseValue('stok_pk') - parseValue('stok_pk_yesterday') + parseValue('pengeluaran_pk') + (isKbb ? parseValue('pk_kcp_to_hopper') : 0);
+            const produksiCpoNonOperasi = 0;
+            const produksiPkNonOperasi = 0;
+            writeValue('stok_cpo', parseValue('stok_cpo_yesterday') - parseValue('pengeluaran_cpo'));
+            writeValue('stok_pk', parseValue('stok_pk_yesterday') - parseValue('pengeluaran_pk') - (isKbb ? parseValue('pk_kcp_to_hopper') : 0));
+            ['throughput', 'utilisation_rate', 'oer', 'ker'].forEach(name => writeValue(name, 0));
             writeValue('baki_bts_selepas_diproses', bakiBtsNonOperasi);
             writeValue('produksi_cpo', produksiCpoNonOperasi);
             writeValue('produksi_pk', produksiPkNonOperasi);

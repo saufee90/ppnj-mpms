@@ -78,7 +78,7 @@
                     @if(auth()->user()->canEditData() && (auth()->user()->isAdmin() || $r->mill_id === auth()->user()->mill_id))
                         <a href="{{ route('data-harian.edit', $r) }}" class="text-amber-600 hover:underline">Edit</a>
                     @endif
-                    @if(auth()->user()->canDeleteData())
+                    @if(auth()->user()->canDeleteData() && !$r->ffb_import_batch_id)
                         <form method="POST" action="{{ route('data-harian.destroy', $r) }}" class="inline" onsubmit="return confirm('Padam rekod ini?')">
                             @csrf @method('DELETE')
                             <button class="text-red-600 hover:underline">Padam</button>

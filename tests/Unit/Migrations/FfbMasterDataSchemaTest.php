@@ -117,11 +117,13 @@ class FfbMasterDataSchemaTest extends TestCase
         $connection = new MySqlConnection(function () {
             throw new LogicException('Database access is forbidden in this unit test.');
         }, '', '', [
+            'driver' => 'mysql',
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'version' => '8.0.0',
         ]);
         $connection->useDefaultSchemaGrammar();
+        $this->schema->shouldReceive('getConnection')->andReturn($connection);
 
         // Capture and compile declarations only; never build a blueprint or open PDO.
         $this->schema->shouldReceive('create')->once()

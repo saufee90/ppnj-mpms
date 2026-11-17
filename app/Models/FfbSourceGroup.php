@@ -50,4 +50,9 @@ class FfbSourceGroup extends Model
     {
         return $this->hasMany(FfbSourceCodeMapping::class);
     }
+
+    public function ffbWeighbridgeTickets(): HasMany
+    {
+        return $this->hasMany(FfbWeighbridgeTicket::class);
+    }
 }

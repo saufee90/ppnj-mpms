@@ -3,7 +3,7 @@
 
 @section('content')
 <form method="GET" action="{{ route('laporan.index') }}" class="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap items-end gap-3" id="filterForm">
-    @if(auth()->user()->canViewAllMills())
+    @if(auth()->user()->canViewAllReportingMills())
     <div>
         <label class="block text-xs text-gray-500 mb-1">Kilang</label>
         <select name="mill_id" class="border rounded-lg px-3 py-2 text-sm">

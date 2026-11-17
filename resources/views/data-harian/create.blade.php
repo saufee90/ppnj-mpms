@@ -3,6 +3,11 @@
 
 @section('content')
 <div class="bg-white rounded-xl shadow-sm p-6 max-w-4xl">
+    @if($confirmedReceipt)
+    <p class="mb-4 rounded bg-green-50 p-3 text-green-900">BTS Disahkan / Dikunci: {{ number_format((float) $confirmedReceipt->confirmed_daily_total_mt, 2) }} MT.
+        <a href="{{ route('ffb-receive.show', $confirmedReceipt) }}" class="underline">FFB #{{ $confirmedReceipt->id }}</a>
+    </p>
+    @endif
     <form id="daily-operation-form" method="POST" action="{{ route('data-harian.store') }}" class="space-y-6" data-form-mode="create">
         @csrf
 
@@ -11,14 +16,14 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Tarikh *</label>
-                    <input id="tarikh_input" type="date" name="tarikh" max="{{ now()->toDateString() }}" value="{{ old('tarikh', $selectedTarikh ?? now()->toDateString()) }}" onchange="refreshOpeningBalanceByDate()" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <input id="tarikh_input" type="date" name="tarikh" max="{{ now('Asia/Kuala_Lumpur')->toDateString() }}" value="{{ $selectedTarikh }}" onchange="refreshOpeningBalanceByDate()" required class="w-full border rounded-lg px-3 py-2 text-sm">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Kilang *</label>
                     <select name="mill_id" required class="w-full border rounded-lg px-3 py-2 text-sm" onchange="refreshOpeningBalance(this.value)">
                         <option value="">Pilih Kilang</option>
                         @foreach($mills as $mill)
-                            <option value="{{ $mill->id }}" data-code="{{ $mill->code }}" {{ (string)request('mill_id') === (string)$mill->id || (string)old('mill_id') === (string)$mill->id ? 'selected' : '' }}>{{ $mill->name }}</option>
+                            <option value="{{ $mill->id }}" data-code="{{ $mill->code }}" @selected((int)$selectedMillId === $mill->id)>{{ $mill->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -27,6 +32,7 @@
                     <select name="operation_status" required class="w-full border rounded-lg px-3 py-2 text-sm">
                         <option value="Operasi" {{ old('operation_status', 'Operasi') === 'Operasi' ? 'selected' : '' }}>Operasi</option>
                         <option value="Tidak Operasi (Terima Buah Sahaja)" {{ old('operation_status', 'Operasi') === 'Tidak Operasi (Terima Buah Sahaja)' ? 'selected' : '' }}>Tidak Operasi (Terima Buah Sahaja)</option>
+                        @if($confirmedReceipt && $allowClosedStatus)<option value="Tidak Operasi (Tutup Sepenuhnya)" @selected(old('operation_status') === 'Tidak Operasi (Tutup Sepenuhnya)')>Tidak Operasi (Tutup Sepenuhnya)</option>@endif
                     </select>
                 </div>
             </div>
@@ -37,7 +43,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">BTS Diterima (MT) *</label>
-                    <input type="number" step="0.01" name="bts_diterima" value="{{ old('bts_diterima', 0) }}" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <input type="number" step="0.01" name="bts_diterima" value="{{ $confirmedReceipt ? $confirmedReceipt->confirmed_daily_total_mt : old('bts_diterima', 0) }}" @readonly($confirmedReceipt !== null) required class="w-full border rounded-lg px-3 py-2 text-sm {{ $confirmedReceipt ? 'bg-gray-100' : '' }}">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">BTS Diproses (MT) *</label>
@@ -371,18 +377,25 @@
     }
 
     function recalculateDerivedFields() {
-        const isNonOperasi = (document.querySelector('[name="operation_status"]')?.value || '') === 'Tidak Operasi (Terima Buah Sahaja)';
+        const status = document.querySelector('[name="operation_status"]')?.value || 'Operasi';
+        const isNonOperasi = status !== 'Operasi';
         const isKbb = isBukitBujangSelected();
         setQualityFieldState(isNonOperasi);
 
         if (isNonOperasi) {
+            if (status === 'Tidak Operasi (Tutup Sepenuhnya)') {
+                ['pengeluaran_cpo', 'pengeluaran_pk', 'pk_kcp_to_hopper'].forEach(name => writeValue(name, 0));
+            }
             writeValue('bts_diproses', 0);
             writeValue('jam_operasi', 0);
             writeValue('downtime_jam', 0);
 
             const bakiBtsNonOperasi = parseValue('baki_bts_semalam') + parseValue('bts_diterima');
-            const produksiCpoNonOperasi = parseValue('stok_cpo') - parseValue('stok_cpo_yesterday') + parseValue('pengeluaran_cpo');
-            const produksiPkNonOperasi = parseValue('stok_pk') - parseValue('stok_pk_yesterday') + parseValue('pengeluaran_pk') + (isKbb ? parseValue('pk_kcp_to_hopper') : 0);
+            const produksiCpoNonOperasi = 0;
+            const produksiPkNonOperasi = 0;
+            writeValue('stok_cpo', parseValue('stok_cpo_yesterday') - parseValue('pengeluaran_cpo'));
+            writeValue('stok_pk', parseValue('stok_pk_yesterday') - parseValue('pengeluaran_pk') - (isKbb ? parseValue('pk_kcp_to_hopper') : 0));
+            ['throughput', 'utilisation_rate', 'oer', 'ker'].forEach(name => writeValue(name, 0));
             writeValue('baki_bts_selepas_diproses', bakiBtsNonOperasi);
             writeValue('produksi_cpo', produksiCpoNonOperasi);
             writeValue('produksi_pk', produksiPkNonOperasi);

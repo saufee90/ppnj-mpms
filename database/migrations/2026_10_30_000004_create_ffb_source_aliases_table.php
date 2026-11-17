@@ -8,11 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('ffb_source_aliases', function (Blueprint $table) {
+        $driver = Schema::getConnection()->getDriverName();
+
+        Schema::create('ffb_source_aliases', function (Blueprint $table) use ($driver) {
             $table->id();
             $table->foreignId('weighbridge_centre_id')->constrained('weighbridge_centres')->restrictOnDelete();
             $table->string('alias_code');
-            $table->string('normalized_code')->charset('utf8mb4')->collation('utf8mb4_bin')->unique();
+            $normalizedCode = $table->string('normalized_code')->unique();
+            if (in_array($driver, ['mysql', 'mariadb'], true)) {
+                $normalizedCode->charset('utf8mb4')->collation('utf8mb4_bin');
+            }
             $table->boolean('is_active')->default(true);
             $table->timestamps();
 

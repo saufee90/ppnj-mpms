@@ -14,7 +14,7 @@ class KpiEvaluationService
         'green' => 1,
     ];
 
-    private const NOTE_2026 = 'Pengiraan YTD tahun 2026 adalah berdasarkan data MPS bermula 1 Julai 2026.';
+    private const NOTE_2026 = 'YTD 2026 merangkumi sejarah bulanan Januari-Jun dan data harian mulai 1 Julai. Sasaran KPI sedia ada kekal untuk Julai-Disember 2026.';
 
     /**
      * Katalog KPI fasa 2 (FFA legacy tidak dipaparkan dalam ringkasan baharu).
@@ -200,7 +200,7 @@ class KpiEvaluationService
             return [
                 'start_date' => '2026-07-01',
                 'end_date' => '2026-12-31',
-                'ytd_start_date' => '2026-07-01',
+                'ytd_start_date' => '2026-01-01',
                 'period_label' => 'Sasaran Tempoh Julai-Disember 2026',
                 'note' => self::NOTE_2026,
             ];
@@ -554,7 +554,8 @@ class KpiEvaluationService
         int $year,
         ?int $month = null,
         ?bool $hasOperationalData = null,
-        ?string $asOfDate = null
+        ?string $asOfDate = null,
+        bool $cumulative = false
     ): array {
         $indicator = self::indicatorMap()[$indicatorCode] ?? null;
         if ($indicator === null) {
@@ -619,7 +620,9 @@ class KpiEvaluationService
                 );
             }
 
-            $monthlyThresholds = $this->resolveMonthlyThresholds($setting, $month);
+            $monthlyThresholds = $cumulative
+                ? $this->resolveCumulativeThresholds($setting, $year, $month, $asOfDate)
+                : $this->resolveMonthlyThresholds($setting, $month);
             $targetType = $monthlyThresholds['target_type'];
             $targetLabel = $monthlyThresholds['target_label'];
 
@@ -658,7 +661,7 @@ class KpiEvaluationService
                 );
             }
 
-            if ($asOfDate !== null) {
+            if ($asOfDate !== null && ! $cumulative) {
                 $prorated = $this->prorateThresholdsToDate($green, $red, $year, $month, $asOfDate);
                 if ($prorated === null) {
                     return $this->buildGreyResult(
@@ -792,6 +795,54 @@ class KpiEvaluationService
             'variance' => round($evaluationValue - (float) $green, 2),
             'message' => $message,
             'explanation' => $message,
+        ];
+    }
+
+    private function resolveCumulativeThresholds(
+        KpiIndicatorSetting $setting,
+        int $year,
+        int $month,
+        ?string $asOfDate
+    ): array {
+        $missing = [
+            'green' => null,
+            'red' => null,
+            'target_type' => 'none',
+            'target_label' => 'Tiada Sasaran',
+        ];
+        if ($asOfDate === null || $month < 1 || $month > 12) {
+            return $missing;
+        }
+
+        $asOf = Carbon::parse($asOfDate);
+        if ($asOf->year !== $year || $asOf->month !== $month) {
+            return $missing;
+        }
+
+        $green = 0.0;
+        $red = 0.0;
+        // A July-only target cannot assess a full-calendar-year YTD quantity.
+        for ($targetMonth = 1; $targetMonth <= $month; $targetMonth++) {
+            $thresholds = $this->resolveMonthlyThresholds($setting, $targetMonth);
+            $monthGreen = $thresholds['green'];
+            $monthRed = $thresholds['red'];
+            if (! is_numeric($monthGreen) || ! is_numeric($monthRed)
+                || $monthGreen < 0 || $monthRed < 0 || $monthGreen < $monthRed) {
+                return $missing;
+            }
+
+            if ($targetMonth === $month) {
+                $thresholds = $this->prorateThresholdsToDate($monthGreen, $monthRed, $year, $month, $asOfDate);
+            }
+            $green += $thresholds['green'];
+            $red += $thresholds['red'];
+        }
+
+        return [
+            'green' => round($green, 2),
+            'red' => round($red, 2),
+            'target_type' => 'cumulative',
+            'target_label' => 'Sasaran Kumulatif',
         ];
     }
 

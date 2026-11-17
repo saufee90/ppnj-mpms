@@ -13,6 +13,7 @@ class Role extends Model
     const PEGAWAI_KILANG = 'pegawai_kilang';
     const PENGURUS_KILANG = 'pengurus_kilang';
     const PENGURUSAN = 'pengurusan';
+    const EKSEKUTIF_PEMASARAN_BTS = 'eksekutif_pemasaran_bts';
 
     public function users(): HasMany
     {

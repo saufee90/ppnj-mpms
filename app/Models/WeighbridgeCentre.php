@@ -31,6 +31,16 @@ class WeighbridgeCentre extends Model
         return $this->belongsTo(Ppk::class);
     }
 
+    public function ffbGroupingReviewReason(): ?string
+    {
+        if (($this->source_category === 'ppnj_ppk_integrated' || $this->ppk_id !== null)
+            && ($this->ppk_id === null || ! $this->ppk || ! $this->ppk->isValidFfbGrouping())) {
+            return 'missing_or_inactive_ppk';
+        }
+
+        return null;
+    }
+
     public function sourceAliases(): HasMany
     {
         return $this->hasMany(FfbSourceAlias::class);
@@ -44,5 +54,10 @@ class WeighbridgeCentre extends Model
     public function sourceCodeMappings(): HasMany
     {
         return $this->hasMany(FfbSourceCodeMapping::class);
+    }
+
+    public function ffbWeighbridgeTickets(): HasMany
+    {
+        return $this->hasMany(FfbWeighbridgeTicket::class);
     }
 }

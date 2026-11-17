@@ -7,6 +7,7 @@ use App\Models\DailyOperation;
 use App\Models\Mill;
 use App\Services\DailyOperationRecalculationService;
 use App\Services\DailyReportNotificationService;
+use App\Services\FfbDailyReceiptService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +33,23 @@ class DailyOperationController extends Controller
         $mills = $user->isMillScopedRole() ? Mill::where('id', $user->mill_id)->get() : Mill::where('is_active', true)->get();
 
         $selectedMillId = $user->isMillScopedRole() ? $user->mill_id : $request->input('mill_id');
-        $selectedTarikh = $request->input('tarikh', now()->toDateString());
+        $selectedTarikh = $request->input('tarikh', now('Asia/Kuala_Lumpur')->toDateString());
+        $request->validate([
+            'tarikh' => ['sometimes', 'date_format:Y-m-d', 'before_or_equal:'.now('Asia/Kuala_Lumpur')->toDateString()],
+            'mill_id' => ['nullable', 'integer', Rule::exists('mills', 'id'),
+                ...($user->isMillScopedRole() ? [Rule::in([$user->mill_id])] : [])],
+        ]);
+        $receipts = app(FfbDailyReceiptService::class);
+        $enforcedDate = $receipts->applies($selectedTarikh);
+        $confirmedReceipt = $enforcedDate && $selectedMillId
+            ? $receipts->confirmed((int) $selectedMillId, $selectedTarikh)
+            : null;
+        if ($enforcedDate) {
+            $existing = DailyOperation::where('mill_id', $selectedMillId)->whereDate('tarikh', $selectedTarikh)->exists();
+            if (! $confirmedReceipt || $existing) {
+                return view('data-harian.receipt-required', compact('mills', 'selectedMillId', 'selectedTarikh', 'existing'));
+            }
+        }
 
         $opening = $recalculationService->resolveOpeningBalance($selectedMillId ? (int) $selectedMillId : null, $selectedTarikh);
 
@@ -40,6 +57,8 @@ class DailyOperationController extends Controller
             'mills' => $mills,
             'selectedMillId' => $selectedMillId,
             'selectedTarikh' => $selectedTarikh,
+            'confirmedReceipt' => $confirmedReceipt,
+            'allowClosedStatus' => $enforcedDate,
             'defaultBakiSemalam' => $opening['baki_bts_semalam'],
             'defaultStokCpoYesterday' => $opening['stok_cpo_yesterday'],
             'defaultStokPkYesterday' => $opening['stok_pk_yesterday'],
@@ -49,32 +68,56 @@ class DailyOperationController extends Controller
         ]);
     }
 
-   public function store(
-    Request $request,
-    DailyOperationRecalculationService $recalculationService,
-    DailyReportNotificationService $notificationService
-)
-    {
+    public function store(
+        Request $request,
+        DailyOperationRecalculationService $recalculationService,
+        DailyReportNotificationService $notificationService
+    ) {
         $user = $request->user();
 
-        $validated = $this->validateData($request, $user);
-        $validated['operation_status'] = $this->normalizeOperationStatus($validated['operation_status'] ?? null);
-        $validated['shift'] = $validated['shift'] ?? 'Harian';
+        $identity = $request->validate([
+            'mill_id' => ['required', 'integer', 'exists:mills,id'],
+            'tarikh' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now('Asia/Kuala_Lumpur')->toDateString()],
+        ]);
+        $operation = DB::transaction(function () use ($request, $user, $identity, $recalculationService): DailyOperation {
+            $receipts = app(FfbDailyReceiptService::class);
+            $user = $receipts->lockActor((int) $identity['mill_id'], $user);
+            $batch = $receipts->prepare($request);
+            $validated = $this->validateData($request, $user);
+            $receipts->validateClosed($validated);
+            $validated['operation_status'] = $this->normalizeOperationStatus($validated['operation_status'] ?? null);
+            $validated['shift'] = $validated['shift'] ?? 'Harian';
 
-        $validated = $recalculationService->prepareForPersistence($validated);
+            $validated = $recalculationService->prepareForPersistence($validated);
 
-        $data = $validated;
-        $data['officer_id'] = $user->id;
-        $data['status'] = 'submitted';
+            $data = $validated;
+            $data['officer_id'] = $user->id;
+            $data['status'] = 'submitted';
 
-        $operation = DailyOperation::create($data);
+            $operation = new DailyOperation($data);
+            if ($batch) {
+                $operation->ffbImportBatch()->associate($batch);
+            }
+            $operation->save();
 
-        $recalculationService->recalculateFromDate(
-            (int) $operation->mill_id,
-            Carbon::parse($operation->tarikh)
-        );
+            $recalculationService->recalculateFromDate(
+                (int) $operation->mill_id,
+                Carbon::parse($operation->tarikh)
+            );
 
-        AuditLog::record('created', $operation, null, $operation->toArray());
+            $operation->refresh();
+            AuditLog::record('created', $operation, null, $operation->toArray());
+            if ($batch) {
+                $batch->update(['daily_operation_id' => $operation->id, 'synced_at' => now()]);
+                AuditLog::record('ffb_daily_linked', $batch, null, [
+                    'batch_id' => $batch->id, 'daily_operation_id' => $operation->id,
+                    'mill_id' => $batch->mill_id, 'receipt_date' => $batch->receipt_date->toDateString(),
+                    'bts_diterima' => $batch->confirmed_daily_total_mt,
+                ]);
+            }
+
+            return $operation;
+        });
         $notificationService->sendIfReady($operation->tarikh);
 
         return redirect()->route('rekod-harian.index')->with('success', 'Rekod harian berjaya disimpan.');
@@ -167,16 +210,31 @@ class DailyOperationController extends Controller
             return redirect()->route('rekod-harian.index')->with('error', $authorization->message() ?: 'Akses kemaskini rekod ditolak.');
         }
 
-        $validated = $this->validateData($request, $user, $daily_operation->id, $daily_operation->shift, true);
-        $validated['operation_status'] = $this->normalizeOperationStatus($validated['operation_status'] ?? null);
-        $validated['shift'] = $validated['shift'] ?? $daily_operation->shift ?? 'Harian';
+        $request->validate(['mill_id' => ['required', 'integer', 'exists:mills,id']]);
+        $result = DB::transaction(function () use ($daily_operation, $request, $recalculationService, $user): array {
+            $millIds = array_unique([(int) $daily_operation->mill_id, (int) $request->input('mill_id')]);
+            sort($millIds);
+            foreach ($millIds as $millId) {
+                Mill::whereKey($millId)->lockForUpdate()->firstOrFail();
+            }
+            $receipts = app(FfbDailyReceiptService::class);
+            $user = $receipts->lockActor((int) $request->input('mill_id'), $user);
+            $daily_operation = DailyOperation::whereKey($daily_operation->id)->lockForUpdate()->firstOrFail();
+            if (! in_array((int) $daily_operation->mill_id, $millIds, true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['record' => 'Rekod berubah. Sila buka semula borang.']);
+            }
+            Gate::forUser($user)->authorize('update', $daily_operation);
+            $receipts->prepare($request, $daily_operation);
+            $validated = $this->validateData($request, $user, $daily_operation->id, $daily_operation->shift, true);
+            $receipts->validateClosed($validated);
+            $validated['operation_status'] = $this->normalizeOperationStatus($validated['operation_status'] ?? null);
+            $validated['shift'] = $validated['shift'] ?? $daily_operation->shift ?? 'Harian';
 
-        $amendmentReason = $validated['amendment_reason'];
-        unset($validated['amendment_reason']);
+            $amendmentReason = $validated['amendment_reason'];
+            unset($validated['amendment_reason']);
 
-        $validated = $recalculationService->prepareForPersistence($validated, $daily_operation->id);
+            $validated = $recalculationService->prepareForPersistence($validated, $daily_operation->id);
 
-        $result = DB::transaction(function () use ($daily_operation, $validated, $amendmentReason, $recalculationService, $user): array {
             $oldMillId = (int) $daily_operation->mill_id;
             $oldTarikh = $daily_operation->tarikh->copy();
             $oldValues = $daily_operation->toArray();
@@ -260,9 +318,16 @@ class DailyOperationController extends Controller
 
     public function destroy(DailyOperation $daily_operation)
     {
-        AuditLog::record('deleted', $daily_operation, $daily_operation->toArray(), null);
-
-        $daily_operation->delete();
+        DB::transaction(function () use ($daily_operation): void {
+            $user = app(FfbDailyReceiptService::class)->lockActor((int) $daily_operation->mill_id, request()->user());
+            abort_unless($user->isAdmin(), 403);
+            $operation = DailyOperation::whereKey($daily_operation->id)->lockForUpdate()->firstOrFail();
+            if ($operation->ffb_import_batch_id !== null) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['record' => 'Rekod harian berpaut FFB dikunci dan tidak boleh dipadam.']);
+            }
+            AuditLog::record('deleted', $operation, $operation->toArray(), null);
+            $operation->delete();
+        });
 
         return redirect()->route('rekod-harian.index')->with('success', 'Data harian berjaya dipadam.');
     }
@@ -316,14 +381,18 @@ class DailyOperationController extends Controller
             'dirt' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
-        $daily_operation->load('mill');
-        $validated['throughput'] = $daily_operation->computeThroughput();
-        $validated['utilisation_rate'] = $daily_operation->computeUtilisationRate($validated['throughput']);
-
-        $old = $daily_operation->only(array_keys($validated));
-        $daily_operation->update($validated);
-
-        AuditLog::record('quality_updated', $daily_operation, $old, $validated);
+        DB::transaction(function () use ($daily_operation, $validated, $user): void {
+            app(FfbDailyReceiptService::class)->lockActor((int) $daily_operation->mill_id, $user);
+            $operation = DailyOperation::with('mill')->whereKey($daily_operation->id)->lockForUpdate()->firstOrFail();
+            if ((int) $operation->mill_id !== (int) $daily_operation->mill_id) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['record' => 'Rekod berubah. Sila buka semula borang.']);
+            }
+            $validated['throughput'] = $operation->computeThroughput();
+            $validated['utilisation_rate'] = $operation->computeUtilisationRate($validated['throughput']);
+            $old = $operation->only(array_keys($validated));
+            $operation->update($validated);
+            AuditLog::record('quality_updated', $operation, $old, $validated);
+        });
 
         return redirect()->route('data-harian.quality-pending')->with('success', 'Data kualiti berjaya dikemaskini.');
     }
@@ -340,9 +409,9 @@ class DailyOperationController extends Controller
         $millRule = $user->isMillScopedRole() ? Rule::in([$user->mill_id]) : 'exists:mills,id';
 
         $validated = $request->validate([
-            'tarikh' => ['required', 'date', 'before_or_equal:today'],
+            'tarikh' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now('Asia/Kuala_Lumpur')->toDateString()],
             'mill_id' => ['required', $millRule],
-            'operation_status' => ['required', Rule::in(['Operasi', 'Tidak Operasi (Terima Buah Sahaja)'])],
+            'operation_status' => ['required', Rule::in(FfbDailyReceiptService::STATUSES)],
 
             'bts_diterima' => ['required', 'numeric', 'min:0'],
             'bts_diproses' => ['required', 'numeric', 'min:0'],
@@ -396,9 +465,7 @@ class DailyOperationController extends Controller
 
     private function normalizeOperationStatus(?string $value): string
     {
-        return $value === 'Tidak Operasi (Terima Buah Sahaja)'
-            ? 'Tidak Operasi (Terima Buah Sahaja)'
-            : 'Operasi';
+        return in_array($value, FfbDailyReceiptService::STATUSES, true) ? $value : 'Operasi';
     }
 
     private function isBukitBujangMillId(?int $millId): bool

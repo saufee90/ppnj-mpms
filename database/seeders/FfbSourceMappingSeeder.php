@@ -12,10 +12,58 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Requires the approved PPK master; conflicts abort rather than overwrite existing mappings.
+ * Requires official PPK masters; the independent estate is an FFB parent, not an official PPK.
+ * Conflicts abort rather than overwrite existing mappings.
  */
 class FfbSourceMappingSeeder extends Seeder
 {
+    public const PPK_SOURCES = [
+        ['PT RAJA 1', 'SRC-PT-RAJA-1', 'PPK-PARIT-RAJA'],
+        ['PT RAJA 2', 'SRC-PT-RAJA-2', 'PPK-PARIT-RAJA'],
+        ['PT RAJA 3', 'SRC-PT-RAJA-3', 'PPK-PARIT-RAJA'],
+        ['B/UTARA 2', 'SRC-B-UTARA-2', 'PPK-SIMPANG-LIMA'],
+        ['B.UTARA 3', 'SRC-B-UTARA-3', 'PPK-SIMPANG-LIMA'],
+        ['RENGIT/1', 'SRC-RENGIT-1', 'PPK-RENGIT'],
+        ['RENGIT/2', 'SRC-RENGIT-2', 'PPK-RENGIT'],
+        ['S/MEDAN', 'SRC-S-MEDAN', 'PPK-SRI-MEDAN'],
+        ['B/ANAM', 'SRC-B-ANAM', 'PPK-BATU-ANAM'],
+        ['B/ANAM 1', 'SRC-B-ANAM-1', 'PPK-BATU-ANAM'],
+        ['MUAR SEL 1', 'SRC-MUAR-SEL-1', 'PPK-MUAR-SELATAN'],
+        ['PON SELATAN', 'SRC-PON-SELATAN', 'PPK-PONTIAN-SELATAN'],
+        ['LEDANG 2', 'SRC-LEDANG-2', 'PPK-LEDANG-TANGKAK'],
+        ['S/TENGAH', 'SRC-S-TENGAH', 'PPK-SEGAMAT'],
+        ['SIMPANG 5 /1', 'SRC-SIMPANG-5-1', 'PPK-SIMPANG-LIMA'],
+        ['PPK KLUANG', 'SRC-PPK-KLUANG', 'PPK-KLUANG'],
+    ];
+
+    public const DIRECT_SOURCES = [
+        ['SRC-LADANG-BUKIT-BUJANG', 'LADANG BUKIT BUJANG', 'Ladang Bukit Bujang', 'ppnj_owned'],
+        ['SRC-LADANG-KAHANG-1', 'LADANG KAHANG 1', 'Ladang Kahang 1', 'ppnj_owned'],
+        ['SRC-LADANG-KAHANG-2', 'LADANG KAHANG 2', 'Ladang Kahang 2', 'ppnj_owned'],
+        ['SRC-LADANG-KONSORTIUM-PPNJ-PPK', 'LADANG KONSORTIUM PPNJ/PPK', 'Ladang Konsortium PPNJ/PPK', 'ppnj_owned'],
+        ['SRC-USAHASAMA-JELAPANG-MEGAH', 'LADANG USAHASAMA PPNJ / JELAPANG MEGAH', 'Jelapang Megah', 'ppnj_owned'],
+        ['SRC-USAHASAMA-PPK-KLUANG-UTARA', 'LADANG USAHASAMA PPNJ / PPK KLUANG UTARA', Ppk::KLUANG_UTARA_NAME, 'ppnj_ppk_integrated'],
+        ['SRC-BANGAS-AGRO', 'BANGAS AGRO ENTERPRISE', 'BANGAS AGRO ENTERPRISE', 'external_supplier'],
+        ['SRC-KOPERASI-SAWIT-MAMPAN-SEGAMAT', 'KOPERASI PENANAM SAWIT MAMPAN SEGAMAT BERHAD', 'KOPERASI PENANAM SAWIT MAMPAN SEGAMAT BERHAD', 'external_supplier'],
+        ['SRC-MEWAH-MEGA', 'MEWAH MEGA OIL PALM SDN BHD', 'MEWAH MEGA OIL PALM SDN BHD', 'external_supplier'],
+        ['SRC-BIS-JAYA', 'BIS JAYA TRADING SDN BHD', 'BIS JAYA TRADING SDN BHD', 'external_supplier'],
+        ['SRC-GUAN-LENG', 'GUAN LENG TRADING SDN BHD', 'GUAN LENG TRADING SDN BHD', 'external_supplier'],
+        ['SRC-HJ-MANSOR', 'HJ MANSOR FAMILY AND SONS SDN BHD', 'HJ MANSOR FAMILY AND SONS SDN BHD', 'external_supplier'],
+        ['SRC-KAHANG-OIL-PALM', 'KAHANG OIL PALM TRADING', 'KAHANG OIL PALM TRADING', 'external_supplier'],
+        ['SRC-USAHASAMA-PKAYIS-KDSSB', 'LADANG USAHASAMA PKAYIS&KDSSB', 'LADANG USAHASAMA PKAYIS&KDSSB', 'external_supplier'],
+    ];
+
+    public const CONTEXTUAL_SOURCES = [
+        'SRC-LADANG-KONSORTIUM-PPNJ-PPK' => ['23A', '23B'],
+        'SRC-USAHASAMA-PKAYIS-KDSSB' => ['99/A'],
+    ];
+
+    public const HEADING_SCOPED_CODES = [
+        'SRC-BANGAS-AGRO' => ['BAE'],
+        'SRC-USAHASAMA-JELAPANG-MEGAH' => ['B JELAPANG'],
+        'SRC-USAHASAMA-PPK-KLUANG-UTARA' => ['01 B'],
+    ];
+
     public function run(
         Ppk $ppks,
         WeighbridgeCentre $centres,
@@ -26,17 +74,29 @@ class FfbSourceMappingSeeder extends Seeder
             $ppkCodes = [
                 'PPK-PARIT-RAJA', 'PPK-SIMPANG-LIMA', 'PPK-RENGIT', 'PPK-SRI-MEDAN',
                 'PPK-BATU-ANAM', 'PPK-MUAR-SELATAN', 'PPK-PONTIAN-SELATAN', 'PPK-LEDANG-TANGKAK',
+                'PPK-SEGAMAT', 'PPK-KLUANG',
             ];
             $parents = [];
 
             foreach ($ppkCodes as $code) {
                 $parent = $ppks->newQuery()->where('code', $code)->first();
 
-                if (! $parent || ! $parent->is_active) {
+                if (! $parent || ! $parent->is_active || $parent->entity_type !== Ppk::OFFICIAL_PPK) {
                     throw new DomainException("Missing or inactive PPK master: {$code}. Seed the approved PPK master first.");
                 }
 
                 $parents[$code] = $parent->id;
+            }
+
+            $independent = $ppks->newQuery()->where('code', Ppk::KLUANG_UTARA_CODE)->firstOrCreate([], [
+                'code' => Ppk::KLUANG_UTARA_CODE,
+                'name' => Ppk::KLUANG_UTARA_NAME,
+                'entity_type' => Ppk::INDEPENDENT_INTEGRATED_ESTATE,
+                'is_active' => true,
+            ]);
+            if (! $independent->is_active || $independent->name !== Ppk::KLUANG_UTARA_NAME
+                || $independent->entity_type !== Ppk::INDEPENDENT_INTEGRATED_ESTATE) {
+                throw new DomainException('Conflicting independent FFB parent: '.Ppk::KLUANG_UTARA_CODE);
             }
 
             $integratedGroup = $this->ensureGroup($groups, [
@@ -46,23 +106,7 @@ class FfbSourceMappingSeeder extends Seeder
             ]);
 
             // Each distinct confirmed code remains a separate canonical source.
-            $ppkSources = [
-                ['PT RAJA 1', 'SRC-PT-RAJA-1', 'PPK-PARIT-RAJA'],
-                ['PT RAJA 2', 'SRC-PT-RAJA-2', 'PPK-PARIT-RAJA'],
-                ['PT RAJA 3', 'SRC-PT-RAJA-3', 'PPK-PARIT-RAJA'],
-                ['B/UTARA 2', 'SRC-B-UTARA-2', 'PPK-SIMPANG-LIMA'],
-                ['B.UTARA 3', 'SRC-B-UTARA-3', 'PPK-SIMPANG-LIMA'],
-                ['RENGIT/1', 'SRC-RENGIT-1', 'PPK-RENGIT'],
-                ['RENGIT/2', 'SRC-RENGIT-2', 'PPK-RENGIT'],
-                ['S/MEDAN', 'SRC-S-MEDAN', 'PPK-SRI-MEDAN'],
-                ['B/ANAM', 'SRC-B-ANAM', 'PPK-BATU-ANAM'],
-                ['B/ANAM 1', 'SRC-B-ANAM-1', 'PPK-BATU-ANAM'],
-                ['MUAR SEL 1', 'SRC-MUAR-SEL-1', 'PPK-MUAR-SELATAN'],
-                ['PON SELATAN', 'SRC-PON-SELATAN', 'PPK-PONTIAN-SELATAN'],
-                ['LEDANG 2', 'SRC-LEDANG-2', 'PPK-LEDANG-TANGKAK'],
-            ];
-
-            foreach ($ppkSources as [$sourceCode, $internalCode, $ppkCode]) {
+            foreach (self::PPK_SOURCES as [$sourceCode, $internalCode, $ppkCode]) {
                 $centre = $this->ensureCentre($centres, $internalCode, [
                     'name' => $sourceCode,
                     'ppk_id' => $parents[$ppkCode],
@@ -71,34 +115,47 @@ class FfbSourceMappingSeeder extends Seeder
                 $this->ensureMapping($mappings, $integratedGroup->id, $sourceCode, $centre->id);
             }
 
-            $directSources = [
-                ['SRC-LADANG-BUKIT-BUJANG', 'LADANG BUKIT BUJANG', 'Ladang Bukit Bujang', 'ppnj_owned'],
-                ['SRC-LADANG-KAHANG-2', 'LADANG KAHANG 2', 'Ladang Kahang 2', 'ppnj_owned'],
-                ['SRC-LADANG-KONSORTIUM-PPNJ-PPK', 'LADANG KONSORTIUM PPNJ/PPK', 'Ladang Konsortium PPNJ/PPK', 'ppnj_owned'],
-                ['SRC-USAHASAMA-JELAPANG-MEGAH', 'LADANG USAHASAMA PPNJ / JELAPANG MEGAH', 'LADANG USAHASAMA PPNJ / JELAPANG MEGAH', 'ppnj_ppk_integrated'],
-                ['SRC-USAHASAMA-PPK-KLUANG-UTARA', 'LADANG USAHASAMA PPNJ / PPK KLUANG UTARA', 'LADANG USAHASAMA PPNJ / PPK KLUANG UTARA', 'ppnj_ppk_integrated'],
-                ['SRC-BANGAS-AGRO', 'BANGAS AGRO ENTERPRISE', 'BANGAS AGRO ENTERPRISE', 'external_supplier'],
-                ['SRC-KOPERASI-SAWIT-MAMPAN-SEGAMAT', 'KOPERASI PENANAM SAWIT MAMPAN SEGAMAT BERHAD', 'KOPERASI PENANAM SAWIT MAMPAN SEGAMAT BERHAD', 'external_supplier'],
-                ['SRC-MEWAH-MEGA', 'MEWAH MEGA OIL PALM SDN BHD', 'MEWAH MEGA OIL PALM SDN BHD', 'external_supplier'],
-                ['SRC-BIS-JAYA', 'BIS JAYA TRADING SDN BHD', 'BIS JAYA TRADING SDN BHD', 'external_supplier'],
-                ['SRC-GUAN-LENG', 'GUAN LENG TRADING SDN BHD', 'GUAN LENG TRADING SDN BHD', 'external_supplier'],
-                ['SRC-HJ-MANSOR', 'HJ MANSOR FAMILY AND SONS SDN BHD', 'HJ MANSOR FAMILY AND SONS SDN BHD', 'external_supplier'],
-                ['SRC-KAHANG-OIL-PALM', 'KAHANG OIL PALM TRADING', 'KAHANG OIL PALM TRADING', 'external_supplier'],
-                ['SRC-USAHASAMA-PKAYIS-KDSSB', 'LADANG USAHASAMA PKAYIS&KDSSB', 'LADANG USAHASAMA PKAYIS&KDSSB', 'external_supplier'],
-            ];
-
-            foreach ($directSources as [$internalCode, $heading, $name, $category]) {
+            foreach (self::DIRECT_SOURCES as [$internalCode, $heading, $name, $category]) {
                 $centre = $this->ensureCentre($centres, $internalCode, [
                     'name' => $name,
-                    'ppk_id' => null,
+                    'ppk_id' => $internalCode === 'SRC-USAHASAMA-PPK-KLUANG-UTARA' ? $independent->id : null,
                     'source_category' => $category,
                 ]);
-                $this->ensureGroup($groups, [
+                $contextual = isset(self::CONTEXTUAL_SOURCES[$internalCode]);
+                $group = $this->ensureGroup($groups, [
                     'heading' => $heading,
                     'source_category' => $category,
-                    'weighbridge_centre_id' => $centre->id,
+                    'weighbridge_centre_id' => $contextual ? null : $centre->id,
                 ]);
+
+                foreach (array_merge(
+                    self::CONTEXTUAL_SOURCES[$internalCode] ?? [],
+                    self::HEADING_SCOPED_CODES[$internalCode] ?? [],
+                ) as $code) {
+                    $this->ensureMapping($mappings, $group->id, $code, $centre->id);
+                }
+
+                if ($internalCode === 'SRC-BIS-JAYA') {
+                    $alternateGroup = $this->ensureGroup($groups, [
+                        'heading' => 'BIS JAYA TRADING SDN BHD (A)',
+                        'source_category' => $category,
+                        'weighbridge_centre_id' => null,
+                    ]);
+                    $this->ensureMapping($mappings, $alternateGroup->id, 'BIS JAYA (A)', $centre->id);
+                }
             }
+
+            $wakaf = $this->ensureCentre($centres, 'SRC-LADANG-WAKAF-JEMALUANG', [
+                'name' => 'LADANG WAKAF JEMALUANG',
+                'ppk_id' => null,
+                'source_category' => 'ppnj_owned',
+            ]);
+            $wakafGroup = $this->ensureGroup($groups, [
+                'heading' => 'LADANG WAKAF JEMALUANG',
+                'source_category' => 'ppnj_owned',
+                'weighbridge_centre_id' => null,
+            ]);
+            $this->ensureMapping($mappings, $wakafGroup->id, 'A+B+C', $wakaf->id);
         });
     }
 

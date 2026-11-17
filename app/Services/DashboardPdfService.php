@@ -10,8 +10,10 @@ class DashboardPdfService
 {
     public const ALLOWED_MILL_CODES = ['KHG', 'BBJ'];
 
-    public function __construct(private readonly KpiEvaluationService $kpiEvaluationService)
-    {
+    public function __construct(
+        private readonly KpiEvaluationService $kpiEvaluationService,
+        private readonly YtdPerformanceService $ytdPerformanceService
+    ) {
     }
 
     public function generate(?Carbon $displayDate = null, ?string $millCode = null): array
@@ -25,7 +27,8 @@ class DashboardPdfService
             ->orderByRaw("CASE code WHEN 'KHG' THEN 1 WHEN 'BBJ' THEN 2 ELSE 99 END")
             ->get();
 
-        $millSummaries = $statusMills->map(function ($mill) use ($displayDate) {
+        $ytdRows = $this->ytdPerformanceService->rows($displayDate, $statusMills->pluck('id')->all());
+        $millSummaries = $statusMills->map(function ($mill) use ($displayDate, $ytdRows) {
             $dailyQuery = DailyOperation::query()
                 ->where('mill_id', $mill->id)
                 ->whereDate('tarikh', $displayDate->toDateString());
@@ -92,6 +95,7 @@ class DashboardPdfService
                     'bts' => $btsKpi,
                     'downtime' => $downtimeKpi,
                 ],
+                'ytd' => $this->ytdPerformanceService->metrics($ytdRows->where('mill_id', $mill->id)),
 
                 'mtd' => [
                     'bts_diterima' => (float) $mtdRows->sum('bts_diterima'),
@@ -122,6 +126,8 @@ class DashboardPdfService
             'filename' => $filename,
             'display_date' => $displayDate,
             'mill_summaries' => $millSummaries,
+            'ytd' => $this->ytdPerformanceService->metrics($ytdRows),
+            'ytd_note' => $this->ytdPerformanceService->note($displayDate),
         ];
     }
 

@@ -14,11 +14,13 @@ use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
+use Tests\Support\SeedsSyntheticYtdHistory;
 use Tests\TestCase;
 
 class DailyDashboardKpiReportTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSyntheticYtdHistory;
 
     private Carbon $reportDate;
     private Mill $kbb;
@@ -40,6 +42,8 @@ class DailyDashboardKpiReportTest extends TestCase
         $role = Role::create(['name' => Role::PEGAWAI_KILANG, 'label' => 'Pegawai Kilang']);
         $this->kbb = $this->createMill('Kilang Sawit Bukit Bujang', 'BBJ');
         $this->kkhg = $this->createMill('Kilang Sawit PPNJ Kahang', 'KHG');
+        $this->seedSyntheticYtdHistory($this->kbb);
+        $this->seedSyntheticYtdHistory($this->kkhg);
         $this->officer = User::create([
             'name' => 'Pegawai Laporan Harian',
             'email' => 'pegawai-laporan@test.local',
@@ -143,7 +147,7 @@ class DailyDashboardKpiReportTest extends TestCase
             'bts_diproses' => 0,
             'jam_operasi' => 0,
             'downtime_jam' => 2,
-            'operation_status' => 'Tidak Operasi',
+            'operation_status' => 'Tidak Operasi (Terima Buah Sahaja)',
         ]);
         $this->createOperation($this->kkhg);
         $this->createDirectSetting($this->kbb, 3, 6);

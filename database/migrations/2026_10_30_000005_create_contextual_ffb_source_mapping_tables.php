@@ -8,10 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('ffb_source_groups', function (Blueprint $table) {
+        $driver = Schema::getConnection()->getDriverName();
+
+        Schema::create('ffb_source_groups', function (Blueprint $table) use ($driver) {
             $table->id();
             $table->string('heading');
-            $table->string('normalized_heading')->charset('utf8mb4')->collation('utf8mb4_bin')->unique();
+            $normalizedHeading = $table->string('normalized_heading')->unique();
+            if (in_array($driver, ['mysql', 'mariadb'], true)) {
+                $normalizedHeading->charset('utf8mb4')->collation('utf8mb4_bin');
+            }
             $table->enum('source_category', [
                 'ppnj_owned',
                 'ppnj_ppk_integrated',
@@ -23,11 +28,14 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('ffb_source_code_mappings', function (Blueprint $table) {
+        Schema::create('ffb_source_code_mappings', function (Blueprint $table) use ($driver) {
             $table->id();
             $table->foreignId('ffb_source_group_id')->constrained('ffb_source_groups')->restrictOnDelete();
             $table->string('code');
-            $table->string('normalized_code')->charset('utf8mb4')->collation('utf8mb4_bin');
+            $normalizedCode = $table->string('normalized_code');
+            if (in_array($driver, ['mysql', 'mariadb'], true)) {
+                $normalizedCode->charset('utf8mb4')->collation('utf8mb4_bin');
+            }
             $table->foreignId('weighbridge_centre_id')->constrained('weighbridge_centres')->restrictOnDelete();
             $table->boolean('is_active')->default(true);
             $table->timestamps();

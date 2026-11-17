@@ -6,6 +6,24 @@ class ManagementReportSvgChartService
 {
     private const COLOURS = ['#0B5D32', '#C9A227', '#2563EB', '#DC2626'];
 
+    public function buildReceipts(array $data): array
+    {
+        return [
+            'trend' => $this->lineChart(
+                array_map(fn ($day) => ['date' => $day['date'], 'mt' => $day['mt']], $data['trend']),
+                [['key' => 'mt', 'label' => 'BTS Diterima']], 'MT', fullDates: true
+            ),
+            'categories' => $this->groupedBarChart(
+                [['name' => 'Penerimaan disahkan', 'metrics' => array_map(fn ($row) => $row['mt'], $data['categories'])]],
+                [
+                    ['key' => 'ppnj_owned', 'label' => \App\Support\FfbReceivePresentation::category('ppnj_owned')],
+                    ['key' => 'ppnj_ppk_integrated', 'label' => \App\Support\FfbReceivePresentation::category('ppnj_ppk_integrated')],
+                    ['key' => 'external_supplier', 'label' => \App\Support\FfbReceivePresentation::category('external_supplier')],
+                ], 'MT'
+            ),
+        ];
+    }
+
     public function build(array $dataset): array
     {
         $trend = $dataset['overall']['trend'] ?? [];
@@ -64,7 +82,7 @@ class ManagementReportSvgChartService
         return $charts;
     }
 
-    private function lineChart(array $rows, array $series, string $unit, ?float $target = null): ?string
+    private function lineChart(array $rows, array $series, string $unit, ?float $target = null, bool $fullDates = false): ?string
     {
         if ($rows === []) {
             return null;
@@ -129,7 +147,7 @@ class ManagementReportSvgChartService
                 continue;
             }
             $x = $left + (count($rows) === 1 ? $plotWidth / 2 : ($index / (count($rows) - 1)) * $plotWidth);
-            $label = substr((string) ($row['date'] ?? ''), 8, 2);
+            $label = $fullDates ? (string) ($row['date'] ?? '') : substr((string) ($row['date'] ?? ''), 8, 2);
             $svg .= sprintf('<text x="%.2f" y="%d" text-anchor="middle" class="axis">%s</text>', $x, $height - 20, $this->escape($label));
         }
 

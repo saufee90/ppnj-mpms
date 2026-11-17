@@ -7,14 +7,16 @@
     <link rel="shortcut icon" href="{{ asset('images/favicon.png') }}?v=1.0">
     <link rel="apple-touch-icon" href="{{ asset('images/favicon.png') }}">
     <title>@yield('title', 'Dashboard') - PPNJ Mill Performance System</title>
+    <script src="{{ asset('js/mps-theme.js') }}?v=2"></script>
+    <link rel="stylesheet" href="{{ asset('css/mps-theme.css') }}?v=2">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>window.MpsTheme.registerCharts();</script>
     <style>
         .ppnj-green { background-color: #0B5D32; }
         .ppnj-green-text { color: #0B5D32; }
         .ppnj-gold { color: #C9A227; }
         .ppnj-gold-bg { background-color: #C9A227; }
-        .nav-link.active { background-color: rgba(255,255,255,0.15); border-left: 3px solid #C9A227; }
         /* Sidebar branding and footer sticky positioning */
         .sidebar-branding {
             position: sticky;
@@ -81,10 +83,10 @@
     </style>
     @yield('styles')
 </head>
-<body class="bg-gray-50 min-h-screen overflow-x-hidden">
+<body class="mps-app min-h-screen overflow-x-hidden">
     <div class="flex">
         <!-- Sidebar -->
-        <aside class="ppnj-green w-64 min-h-screen text-white hidden md:flex flex-col fixed">
+        <aside class="mps-sidebar w-64 h-screen text-white hidden md:flex flex-col fixed">
             <!-- Sticky Branding Section -->
             <div class="sidebar-branding">
                 <img src="{{ asset('images/logo-ppnj.jpg') }}" alt="PPNJ Logo" class="logo">
@@ -105,7 +107,7 @@
 
         <div id="mobile-sidebar-overlay" class="fixed inset-0 z-40 bg-black/50 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden" aria-hidden="true"></div>
 
-        <aside id="mobile-sidebar" class="ppnj-green fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] -translate-x-full flex-col text-white shadow-xl transition-transform duration-200 ease-out md:hidden" role="dialog" aria-modal="true" aria-label="Navigasi utama" aria-hidden="true" inert>
+        <aside id="mobile-sidebar" class="mps-sidebar fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] -translate-x-full flex-col text-white shadow-xl transition-transform duration-200 ease-out md:hidden" role="dialog" aria-modal="true" aria-label="Navigasi utama" aria-hidden="true" inert>
             <div class="sidebar-branding relative pr-16">
                 <button id="mobile-sidebar-close" type="button" class="absolute right-3 top-3 flex h-11 w-11 items-center justify-center text-2xl text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Tutup menu navigasi">
                     <span aria-hidden="true">×</span>
@@ -126,7 +128,7 @@
         </aside>
 
         <!-- Main content -->
-        <div class="flex-1 md:ml-64">
+        <div class="mps-shell flex-1 min-w-0 md:ml-64">
             @if(auth()->check() && auth()->user()->isAdmin() && ($systemMaintenanceEnabled ?? false))
                 <div class="bg-red-600 text-white text-sm px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <div>Maintenance Mode sedang AKTIF. Semua pengguna selain Admin tidak boleh mengakses sistem.</div>
@@ -134,7 +136,7 @@
                 </div>
             @endif
             <!-- Topbar -->
-            <header class="bg-white shadow-sm sticky top-0 z-10 flex items-center justify-between px-6 py-3">
+            <header class="mps-topbar bg-white shadow-sm sticky top-0 z-10 flex items-center justify-between gap-2 px-4 md:px-6 py-3">
                 <div class="flex min-w-0 items-center gap-2">
                     <button id="mobile-sidebar-open" type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-700 md:hidden" aria-label="Buka menu navigasi" aria-controls="mobile-sidebar" aria-expanded="false">
                         <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
@@ -143,8 +145,12 @@
                     </button>
                     <h2 class="truncate text-lg font-semibold ppnj-green-text">@yield('title', 'Dashboard')</h2>
                 </div>
-                <div class="flex items-center gap-4">
-                    <div class="text-right text-sm">
+                <div class="flex min-w-0 items-center gap-2 md:gap-4">
+                    <button id="mps-theme-toggle" type="button" class="theme-toggle" aria-label="Tukar ke Dark Mode" title="Tukar ke Dark Mode" aria-pressed="false">
+                        <svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z"/></svg>
+                        <svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+                    </button>
+                    <div class="mps-account-summary text-right text-sm">
                         <p class="font-medium text-gray-700">{{ auth()->user()->name }}</p>
                         <p class="text-xs text-gray-400">{{ auth()->user()->role->label ?? '' }}@if(auth()->user()->mill) &middot; {{ auth()->user()->mill->name }}@endif</p>
                     </div>
@@ -155,7 +161,7 @@
                 </div>
             </header>
 
-            <main class="p-6">
+            <main class="mps-main p-6">
                 @if(session('success'))
                     <div class="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">{{ session('success') }}</div>
                 @endif

@@ -28,4 +28,9 @@ class Mill extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    public function ffbImportBatches(): HasMany
+    {
+        return $this->hasMany(FfbImportBatch::class);
+    }
 }

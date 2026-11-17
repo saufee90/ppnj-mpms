@@ -10,8 +10,10 @@ use Illuminate\Support\Collection;
 
 class ManagementMonthlyReportService
 {
-    public function __construct(private readonly KpiEvaluationService $kpiEvaluationService)
-    {
+    public function __construct(
+        private readonly KpiEvaluationService $kpiEvaluationService,
+        private readonly YtdPerformanceService $ytdPerformanceService
+    ) {
     }
 
     public function generate(User $user, int $year, int $month, ?int $requestedMillId = null): array
@@ -25,6 +27,10 @@ class ManagementMonthlyReportService
 
         $monthStart = Carbon::create($year, $month, 1)->startOfDay();
         $monthEnd = $monthStart->copy()->endOfMonth()->startOfDay();
+        $ytdCutoff = $year === now()->year && $month >= now()->month
+            ? Carbon::yesterday()
+            : $monthEnd;
+        $ytdRows = $this->ytdPerformanceService->rows($ytdCutoff, $mills->pluck('id')->all());
         $rows = DailyOperation::query()
             ->whereIn('mill_id', $mills->pluck('id'))
             ->forMonth($year, $month)
@@ -32,17 +38,21 @@ class ManagementMonthlyReportService
             ->orderBy('id')
             ->get();
 
-        $millReports = $mills->map(function (Mill $mill) use ($rows, $year, $month, $monthEnd) {
-            return $this->buildScopeReport(
+        $millReports = $mills->map(function (Mill $mill) use ($rows, $year, $month, $monthEnd, $ytdRows) {
+            $report = $this->buildScopeReport(
                 $rows->where('mill_id', $mill->id)->values(),
                 $mill,
                 $year,
                 $month,
                 $monthEnd
             );
+            $report['ytd'] = $this->ytdPerformanceService->metrics($ytdRows->where('mill_id', $mill->id));
+
+            return $report;
         })->values();
 
         $overall = $this->buildOverallReport($rows, $millReports, $year, $month);
+        $overall['ytd'] = $this->ytdPerformanceService->metrics($ytdRows);
         $showMillComparison = $selectedMillId === null && $millReports->count() > 1;
         $comparison = $showMillComparison
             ? $millReports->map(fn (array $report) => [
@@ -78,6 +88,8 @@ class ManagementMonthlyReportService
                 'period_start' => $monthStart->toDateString(),
                 'period_end' => $monthEnd->toDateString(),
                 'as_of_date' => $this->resolveAsOfDate($rows, $monthEnd),
+                'ytd_as_of_date' => $ytdCutoff->toDateString(),
+                'ytd_note' => $this->ytdPerformanceService->note($ytdCutoff),
             ],
             'overall' => $overall,
             'mills' => $millReports->all(),

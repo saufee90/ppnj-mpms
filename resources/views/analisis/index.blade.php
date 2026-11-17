@@ -40,6 +40,7 @@
                 <th class="px-4 py-3 text-right">OER%</th>
                 <th class="px-4 py-3 text-right">KER%</th>
                 <th class="px-4 py-3 text-right">Downtime</th>
+                <th class="px-4 py-3 text-right">Throughput</th>
                 <th class="px-4 py-3 text-right">Utilisation%</th>
             </tr>
         </thead>
@@ -47,13 +48,14 @@
             @foreach($monthlyStats as $row)
             <tr class="hover:bg-gray-50">
                 <td class="px-4 py-3">{{ $row['bulan'] }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($row['bts_diproses'],2) }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($row['cpo'],2) }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($row['pk'],2) }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($row['oer'],2) }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($row['ker'],2) }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($row['downtime'],2) }}</td>
-                <td class="px-4 py-3 text-right">{{ number_format($row['utilisation'],2) }}</td>
+                <td class="px-4 py-3 text-right">{{ $row['bts_diproses'] === null ? '—' : number_format($row['bts_diproses'],2) }}</td>
+                <td class="px-4 py-3 text-right">{{ $row['cpo'] === null ? '—' : number_format($row['cpo'],2) }}</td>
+                <td class="px-4 py-3 text-right">{{ $row['pk'] === null ? '—' : number_format($row['pk'],2) }}</td>
+                <td class="px-4 py-3 text-right">{{ $row['oer'] === null ? '—' : number_format($row['oer'],2) }}</td>
+                <td class="px-4 py-3 text-right">{{ $row['ker'] === null ? '—' : number_format($row['ker'],2) }}</td>
+                <td class="px-4 py-3 text-right">{{ $row['downtime'] === null ? '—' : number_format($row['downtime'],2) }}</td>
+                <td class="px-4 py-3 text-right">{{ $row['throughput'] === null ? '—' : number_format($row['throughput'],2) }}</td>
+                <td class="px-4 py-3 text-right">{{ $row['utilisation'] === null ? '—' : number_format($row['utilisation'],2) }}</td>
             </tr>
             @endforeach
         </tbody>

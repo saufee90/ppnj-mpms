@@ -119,6 +119,16 @@ class DailyOperation extends Model
         return $this->hasMany(DowntimeLog::class);
     }
 
+    public function ffbImportBatch(): BelongsTo
+    {
+        return $this->belongsTo(FfbImportBatch::class);
+    }
+
+    public function ffbImportBatches(): HasMany
+    {
+        return $this->hasMany(FfbImportBatch::class);
+    }
+
     // Scopes untuk filter senang
     public function scopeForMill($query, $millId)
     {

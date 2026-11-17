@@ -9,6 +9,31 @@ use App\Models\WeighbridgeCentre;
 
 class FfbSourceResolver
 {
+    private const MILL_HEADING_SCOPE = [
+        'BBJ' => [
+            'BANGAS AGRO ENTERPRISE',
+            'KOPERASI PENANAM SAWIT MAMPAN SEGAMAT BERHAD',
+            'LADANG BUKIT BUJANG',
+            'LADANG KONSORTIUM PPNJ/PPK',
+            'LADANG USAHASAMA PKAYIS&KDSSB',
+            'MEWAH MEGA OIL PALM SDN BHD',
+            'PERTUBUHAN PELADANG NEGERI JOHOR',
+        ],
+        'KHG' => [
+            'BIS JAYA TRADING SDN BHD',
+            'BIS JAYA TRADING SDN BHD (A)',
+            'GUAN LENG TRADING SDN BHD',
+            'HJ MANSOR FAMILY AND SONS SDN BHD',
+            'KAHANG OIL PALM TRADING',
+            'LADANG KAHANG 1',
+            'LADANG KAHANG 2',
+            'LADANG USAHASAMA PPNJ / JELAPANG MEGAH',
+            'LADANG USAHASAMA PPNJ / PPK KLUANG UTARA',
+            'LADANG WAKAF JEMALUANG',
+            'PERTUBUHAN PELADANG NEGERI JOHOR',
+        ],
+    ];
+
     public function __construct(
         private FfbSourceGroup $groups,
         private FfbSourceCodeMapping $mappings,
@@ -78,8 +103,8 @@ class FfbSourceResolver
             return $this->review($heading, $code, 'source_category_mismatch', $group);
         }
 
-        if ($source->ppk_id !== null && (! $source->ppk || ! $source->ppk->is_active)) {
-            return $this->review($heading, $code, 'missing_or_inactive_ppk', $group);
+        if (($reason = $source->ffbGroupingReviewReason()) !== null) {
+            return $this->review($heading, $code, $reason, $group);
         }
 
         return new FfbSourceResolution(
@@ -92,6 +117,36 @@ class FfbSourceResolver
             ppk: $source->ppk,
             sourceCategory: $source->source_category,
         );
+    }
+
+    public function resolveForMill(string $millCode, string $heading, string $code): FfbSourceResolution
+    {
+        $allowedHeadings = self::MILL_HEADING_SCOPE[$millCode] ?? null;
+        if ($allowedHeadings !== null && trim($heading) !== '') {
+            $normalizedHeading = FfbSourceAlias::normalizeCode($heading);
+            $allowed = in_array($normalizedHeading, array_map(
+                fn (string $candidate): string => FfbSourceAlias::normalizeCode($candidate),
+                $allowedHeadings,
+            ), true);
+            $otherMillOwnsHeading = false;
+            foreach (self::MILL_HEADING_SCOPE as $otherMill => $headings) {
+                if ($otherMill === $millCode) {
+                    continue;
+                }
+                foreach ($headings as $candidate) {
+                    if (FfbSourceAlias::normalizeCode($candidate) === $normalizedHeading) {
+                        $otherMillOwnsHeading = true;
+                        break 2;
+                    }
+                }
+            }
+
+            if ($otherMillOwnsHeading && ! $allowed) {
+                return $this->review($heading, $code, 'heading_not_assigned_to_mill');
+            }
+        }
+
+        return $this->resolve($heading, $code);
     }
 
     private function review(

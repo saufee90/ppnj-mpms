@@ -14,6 +14,7 @@ class RoleSeeder extends Seeder
             ['name' => 'pegawai_kilang', 'label' => 'Pegawai Kilang'],
             ['name' => 'pengurus_kilang', 'label' => 'Pengurus Kilang'],
             ['name' => 'pengurusan', 'label' => 'Pengurusan'],
+            ['name' => Role::EKSEKUTIF_PEMASARAN_BTS, 'label' => 'Eksekutif Pemasaran BTS'],
         ];
 
         foreach ($roles as $role) {

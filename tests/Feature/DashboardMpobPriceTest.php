@@ -11,11 +11,13 @@ use App\Services\MpobPriceService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
+use Tests\Support\SeedsSyntheticYtdHistory;
 use Tests\TestCase;
 
 class DashboardMpobPriceTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSyntheticYtdHistory;
 
     private User $admin;
 
@@ -27,12 +29,13 @@ class DashboardMpobPriceTest extends TestCase
 
         $adminRole = Role::create(['name' => Role::ADMIN, 'label' => 'Admin']);
 
-        Mill::create([
+        $mill = Mill::create([
             'name' => 'Kilang Sawit Bukit Bujang',
             'code' => 'BBJ',
             'location' => 'Segamat',
             'is_active' => true,
         ]);
+        $this->seedSyntheticYtdHistory($mill);
 
         $this->admin = User::create([
             'name' => 'Admin Tester',
@@ -78,7 +81,7 @@ class DashboardMpobPriceTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Data harga belum tersedia', false);
+            ->assertSee('Data belum tersedia', false);
     }
 
     public function test_dashboard_still_returns_ok_when_mpob_source_is_unavailable(): void
@@ -105,9 +108,10 @@ class DashboardMpobPriceTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('mpobSparkline-cpo', false)
-            ->assertSee('mpobSparkline-pk', false)
-            ->assertSee('mpobSparkline-cpko', false)
+            ->assertDontSee('id="mpobSparkline-cpo"', false)
+            ->assertDontSee('id="mpobSparkline-pk"', false)
+            ->assertDontSee('id="mpobSparkline-cpko"', false)
+            ->assertSee('mpob-empty', false)
             ->assertSee('Trend belum tersedia.', false);
     }
 

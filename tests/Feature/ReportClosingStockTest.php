@@ -16,6 +16,7 @@ class ReportClosingStockTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+    private User $marketing;
     private Mill $kbb;
     private Mill $kahang;
 
@@ -30,6 +31,10 @@ class ReportClosingStockTest extends TestCase
         }
 
         $role = Role::create(['name' => Role::ADMIN, 'label' => 'Admin']);
+        $marketingRole = Role::create([
+            'name' => Role::EKSEKUTIF_PEMASARAN_BTS,
+            'label' => 'Eksekutif Pemasaran BTS',
+        ]);
         $this->kbb = $this->createMill('Kilang Sawit Bukit Bujang', 'BBJ');
         $this->kahang = $this->createMill('Kilang Sawit PPNJ Kahang', 'KHG');
         $this->admin = User::create([
@@ -37,6 +42,13 @@ class ReportClosingStockTest extends TestCase
             'email' => 'admin-laporan@test.local',
             'password' => bcrypt('secret'),
             'role_id' => $role->id,
+            'is_active' => true,
+        ]);
+        $this->marketing = User::create([
+            'name' => 'Marketing Laporan',
+            'email' => 'marketing-laporan@test.local',
+            'password' => bcrypt('secret'),
+            'role_id' => $marketingRole->id,
             'is_active' => true,
         ]);
     }
@@ -146,6 +158,38 @@ class ReportClosingStockTest extends TestCase
             ->assertOk()
             ->assertViewHas('closingCpoStock', 0.0)
             ->assertViewHas('closingPkStock', 0.0);
+    }
+
+    public function test_marketing_executive_can_view_combined_and_mill_filtered_reports_and_exports(): void
+    {
+        $this->createOperation($this->kbb, '2026-07-10', ['bts_diproses' => 100]);
+        $this->createOperation($this->kahang, '2026-07-11', ['bts_diproses' => 200]);
+        $parameters = [
+            'tarikh_mula' => '2026-07-01',
+            'tarikh_akhir' => '2026-07-31',
+        ];
+
+        $this->actingAs($this->marketing)
+            ->get(route('laporan.index', $parameters))
+            ->assertOk()
+            ->assertSee('Kilang')
+            ->assertViewHas('records', fn ($records) => $records->pluck('mill_id')->unique()->sort()->values()->all()
+                === [$this->kbb->id, $this->kahang->id]);
+
+        foreach ([$this->kbb, $this->kahang] as $mill) {
+            $this->get(route('laporan.index', $parameters + ['mill_id' => $mill->id]))
+                ->assertOk()
+                ->assertViewHas('records', fn ($records) => $records->pluck('mill_id')->unique()->all() === [$mill->id]);
+        }
+
+        $this->get(route('laporan.export.pdf', $parameters))
+            ->assertOk()
+            ->assertViewIs('laporan.print')
+            ->assertViewHas('records', fn ($records) => $records->count() === 2);
+
+        $this->get(route('laporan.export.excel', $parameters))
+            ->assertOk()
+            ->assertHeader('content-type', 'text/csv; charset=UTF-8');
     }
 
     private function createMill(string $name, string $code): Mill

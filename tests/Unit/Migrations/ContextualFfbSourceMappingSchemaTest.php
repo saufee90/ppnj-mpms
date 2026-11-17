@@ -45,9 +45,11 @@ class ContextualFfbSourceMappingSchemaTest extends TestCase
         $connection = new MySqlConnection(function () {
             throw new LogicException('Database access is forbidden in this unit test.');
         }, '', '', [
+            'driver' => 'mysql',
             'charset' => 'utf8mb4', 'collation' => 'utf8mb4_unicode_ci', 'version' => '8.0.0',
         ]);
         $connection->useDefaultSchemaGrammar();
+        $schema->shouldReceive('getConnection')->once()->andReturn($connection);
 
         foreach (['ffb_source_groups', 'ffb_source_code_mappings'] as $table) {
             $schema->shouldReceive('create')->once()->ordered()

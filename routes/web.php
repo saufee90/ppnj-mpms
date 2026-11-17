@@ -11,6 +11,9 @@ use App\Http\Controllers\KpiTargetController;
 use App\Http\Controllers\SystemMaintenanceController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\FfbReceiveController;
+use App\Http\Controllers\FfbDashboardController;
+use App\Http\Controllers\FfbReceiveReportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -38,8 +41,33 @@ Route::middleware(['system.maintenance', 'auth'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+    Route::prefix('ffb-receive')->name('ffb-receive.')->group(function () {
+        Route::middleware('role:admin,pegawai_kilang,pengurus_kilang,pengurusan,eksekutif_pemasaran_bts')
+            ->group(function () {
+                Route::get('/dashboard', [FfbDashboardController::class, 'index'])->name('dashboard');
+                Route::get('/reports', [FfbReceiveReportController::class, 'index'])->name('reports.index');
+                Route::get('/reports/pdf', [FfbReceiveReportController::class, 'pdf'])->name('reports.pdf');
+                Route::get('/reports/excel', [FfbReceiveReportController::class, 'excel'])->name('reports.excel');
+            });
+
+        Route::middleware('role:admin,pegawai_kilang,pengurus_kilang,pengurusan')->group(function () {
+            Route::get('/', [FfbReceiveController::class, 'index'])->name('index');
+            Route::post('/', [FfbReceiveController::class, 'store'])->name('store');
+            Route::get('/zero-receipt/confirmation', [FfbReceiveController::class, 'zeroConfirmation'])->name('zero-confirmation');
+            Route::post('/zero-receipt/confirm', [FfbReceiveController::class, 'confirmZero'])->name('zero-confirm');
+            Route::get('/{ffb_import_batch}/confirmation', [FfbReceiveController::class, 'confirmation'])->name('confirmation');
+            Route::post('/{ffb_import_batch}/confirm', [FfbReceiveController::class, 'confirm'])->name('confirm');
+            Route::get('/{ffb_import_batch}/correction', [FfbReceiveController::class, 'createCorrection'])->name('correction.create');
+            Route::post('/{ffb_import_batch}/correction', [FfbReceiveController::class, 'storeCorrection'])->name('correction.store');
+            Route::get('/correction/{candidate}/confirmation', [FfbReceiveController::class, 'correctionConfirmation'])->name('correction.confirmation');
+            Route::post('/correction/{candidate}/confirm', [FfbReceiveController::class, 'confirmCorrection'])->name('correction.confirm');
+            Route::get('/{ffb_import_batch}', [FfbReceiveController::class, 'show'])->name('show');
+        });
+    });
+
     // 1. Dashboard - semua role boleh lihat (data dikawal dalam controller ikut role)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/weather', [DashboardController::class, 'weather'])->name('dashboard.weather');
     Route::middleware('role:admin,pengurusan')->get('/dashboard/pdf', [DashboardController::class, 'downloadPdf'])->name('dashboard.pdf');
 
     // 4. Analisis Prestasi - semua role

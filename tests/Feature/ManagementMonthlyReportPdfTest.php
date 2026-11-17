@@ -14,11 +14,13 @@ use App\Services\ManagementMonthlyReportService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
+use Tests\Support\SeedsSyntheticYtdHistory;
 use Tests\TestCase;
 
 class ManagementMonthlyReportPdfTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSyntheticYtdHistory;
 
     private User $admin;
     private User $officer;
@@ -39,6 +41,8 @@ class ManagementMonthlyReportPdfTest extends TestCase
         $officerRole = Role::create(['name' => Role::PEGAWAI_KILANG, 'label' => 'Pegawai Kilang']);
         $this->kbb = $this->createMill('Kilang Sawit Bukit Bujang', 'BBJ');
         $this->kahang = $this->createMill('Kilang Sawit PPNJ Kahang', 'KHG');
+        $this->seedSyntheticYtdHistory($this->kbb);
+        $this->seedSyntheticYtdHistory($this->kahang);
         $this->admin = $this->createUser('admin-fasa3b@test.local', $adminRole);
         $this->officer = $this->createUser('officer-fasa3b@test.local', $officerRole, $this->kbb);
         $this->seedOperations();
